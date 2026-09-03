@@ -1,0 +1,160 @@
+import React from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+export type ResumeTheme = 'executive' | 'modern' | 'minimal';
+
+interface ResumeDocumentProps {
+  markdown: string;
+  theme?: ResumeTheme;
+  elementId?: string;
+  isEditable?: boolean;
+  onMarkdownChange?: (newMd: string) => void;
+}
+
+export const ResumeDocument: React.FC<ResumeDocumentProps> = ({
+  markdown,
+  theme = 'executive',
+  elementId = 'resume-preview-document',
+  isEditable = false,
+  onMarkdownChange,
+}) => {
+  if (isEditable) {
+    return (
+      <div className="w-full max-w-[800px] mx-auto bg-white rounded-xl border border-neutral-200 shadow-sm p-6 space-y-3">
+        <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+          <div>
+            <h4 className="text-sm font-bold text-neutral-900">Direct Resume Editor (Markdown)</h4>
+            <p className="text-xs text-neutral-500">
+              Edit any bullet points, contact info, or dates. Changes save directly to this application.
+            </p>
+          </div>
+          <span className="text-[11px] px-2 py-0.5 rounded bg-neutral-100 text-neutral-600 font-mono">
+            Markdown Mode
+          </span>
+        </div>
+        <textarea
+          id="resume-markdown-editor"
+          value={markdown}
+          onChange={e => onMarkdownChange?.(e.target.value)}
+          rows={24}
+          className="w-full p-4 font-mono text-xs text-neutral-800 bg-neutral-50 rounded-lg border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-900 leading-relaxed"
+          placeholder="Enter resume markdown..."
+        />
+      </div>
+    );
+  }
+
+  // Theme-specific style mappings
+  const themeStyles = {
+    executive: {
+      fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
+      headerBorder: 'border-b-2 border-neutral-900',
+      sectionBorder: 'border-b border-neutral-900',
+      sectionHeading: 'text-[13px] font-bold tracking-wider uppercase text-neutral-900 mt-4 mb-2 pb-0.5',
+      nameHeading: 'text-2xl font-bold tracking-tight uppercase text-neutral-950 text-center',
+      contactLine: 'text-center text-xs text-neutral-700 tracking-normal pb-3 mb-2',
+      bulletSpacing: 'my-1',
+    },
+    modern: {
+      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      headerBorder: 'border-b-2 border-neutral-900',
+      sectionBorder: 'border-b border-neutral-300',
+      sectionHeading: 'text-[12px] font-bold tracking-widest uppercase text-neutral-900 mt-4 mb-2 pb-1',
+      nameHeading: 'text-2xl font-bold tracking-tight uppercase text-neutral-950 text-left',
+      contactLine: 'text-left text-xs text-neutral-600 pb-3 mb-2',
+      bulletSpacing: 'my-1',
+    },
+    minimal: {
+      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+      headerBorder: 'border-b border-neutral-400',
+      sectionBorder: 'border-b border-neutral-200',
+      sectionHeading: 'text-[11px] font-semibold tracking-wider uppercase text-neutral-800 mt-3 mb-1.5 pb-0.5',
+      nameHeading: 'text-xl font-bold tracking-normal uppercase text-neutral-900 text-center',
+      contactLine: 'text-center text-[11px] text-neutral-600 pb-2 mb-1.5',
+      bulletSpacing: 'my-0.5',
+    },
+  }[theme];
+
+  return (
+    <div
+      id={elementId}
+      style={{ fontFamily: themeStyles.fontFamily }}
+      className="bg-white text-neutral-900 w-full max-w-[800px] min-h-[1050px] p-10 sm:p-14 shadow-lg border border-neutral-200 mx-auto text-xs leading-normal print:shadow-none print:border-none print:p-0 print:max-w-none print:min-h-0"
+    >
+      <div className="resume-content-wrapper space-y-1">
+        <Markdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            h1: ({ children }) => (
+              <h1 className={`${themeStyles.nameHeading} pt-1`}>
+                {children}
+              </h1>
+            ),
+            h2: ({ children }) => (
+              <div className={`${themeStyles.sectionHeading} ${themeStyles.sectionBorder} flex items-center justify-between`}>
+                <span>{children}</span>
+              </div>
+            ),
+            h3: ({ children }) => {
+              // Role title and Company formatting
+              const text = String(children);
+              if (text.includes('|')) {
+                const parts = text.split('|').map(s => s.trim());
+                return (
+                  <div className="flex flex-col sm:flex-row sm:items-baseline justify-between pt-2 pb-0.5 text-xs font-bold text-neutral-900">
+                    <span>{parts[0]}</span>
+                    <span className="font-semibold text-neutral-700 sm:text-right">
+                      {parts.slice(1).join(' | ')}
+                    </span>
+                  </div>
+                );
+              }
+              return <h3 className="pt-2 pb-0.5 text-xs font-bold text-neutral-900">{children}</h3>;
+            },
+            p: ({ children }) => {
+              const text = String(children);
+              // Contact line check (email, phone, pipe)
+              if (text.includes('@') || text.includes('|') || text.includes('+')) {
+                return (
+                  <p className={`${themeStyles.contactLine} ${themeStyles.headerBorder}`}>
+                    {children}
+                  </p>
+                );
+              }
+              return (
+                <p className="text-neutral-800 text-[11.5px] leading-relaxed my-1 text-justify">
+                  {children}
+                </p>
+              );
+            },
+            em: ({ children }) => {
+              // Usually date ranges or location
+              return (
+                <span className="block text-[11px] italic text-neutral-600 mb-1">
+                  {children}
+                </span>
+              );
+            },
+            strong: ({ children }) => (
+              <strong className="font-bold text-neutral-950">{children}</strong>
+            ),
+            ul: ({ children }) => (
+              <ul className="list-disc pl-5 space-y-1 text-neutral-800 my-1">{children}</ul>
+            ),
+            ol: ({ children }) => (
+              <ol className="list-decimal pl-5 space-y-1 text-neutral-800 my-1">{children}</ol>
+            ),
+            li: ({ children }) => (
+              <li className={`text-[11.5px] leading-relaxed text-neutral-800 pl-1 ${themeStyles.bulletSpacing}`}>
+                {children}
+              </li>
+            ),
+          }}
+        >
+          {markdown}
+        </Markdown>
+      </div>
+    </div>
+  );
+};

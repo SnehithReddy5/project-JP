@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "authorizedUser": {
+      "title": "AuthorizedUser",
+      "description": "Invite-only authorized email and phone allowlist entry",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 25 },
+        "status": { "type": "string", "enum": ["active", "disabled"] },
+        "addedAt": { "type": "string" },
+        "addedBy": { "type": "string", "maxLength": 150 }
+      },
+      "required": ["email", "status"]
+    },
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "User profile with personal info, job preferences, and base resume",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150 },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 25 },
+        "country": { "type": "string", "maxLength": 60 },
+        "location": { "type": "string", "maxLength": 80 },
+        "jobRole": { "type": "string", "maxLength": 100 },
+        "baseResumeText": { "type": "string", "maxLength": 30000 },
+        "baseResumeFileName": { "type": "string", "maxLength": 150 },
+        "baseResumeUrl": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["email", "name", "country", "location", "jobRole"]
+    },
+    "job": {
+      "title": "Job",
+      "description": "Job posting with company details, location, and application url",
+      "type": "object",
+      "properties": {
+        "company": { "type": "string", "maxLength": 120 },
+        "title": { "type": "string", "maxLength": 120 },
+        "country": { "type": "string", "maxLength": 60 },
+        "location": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 15000 },
+        "applicationUrl": { "type": "string", "maxLength": 500 },
+        "employmentType": { "type": "string", "maxLength": 50 },
+        "experienceLevel": { "type": "string", "maxLength": 50 },
+        "postedAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["company", "title", "country", "location", "description", "applicationUrl", "postedAt"]
+    },
+    "application": {
+      "title": "Application",
+      "description": "Tracked user application with tailored resume",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "jobId": { "type": "string", "maxLength": 128 },
+        "company": { "type": "string", "maxLength": 120 },
+        "jobTitle": { "type": "string", "maxLength": 120 },
+        "tailoredResumeMarkdown": { "type": "string", "maxLength": 30000 },
+        "tailoredResumeUrl": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["draft", "applied"] },
+        "createdAt": { "type": "string" },
+        "appliedAt": { "type": "string" }
+      },
+      "required": ["userId", "jobId", "company", "jobTitle", "status"]
+    }
+  },
+  "firestore": {
+    "/authorizedUsers/{id}": {
+      "schema": { "$ref": "#/entities/authorizedUser" },
+      "description": "List of authorized emails and phones managed by admins"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/userProfile" },
+      "description": "User profile with personal details, job preferences, and base resume"
+    },
+    "/jobs/{jobId}": {
+      "schema": { "$ref": "#/entities/job" },
+      "description": "Published job postings available for discovery"
+    },
+    "/applications/{applicationId}": {
+      "schema": { "$ref": "#/entities/application" },
+      "description": "Job applications tracked by users with tailored resumes"
+    }
+  }
+}

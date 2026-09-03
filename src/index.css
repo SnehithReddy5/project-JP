@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@media print {
+  /* Hide UI elements during print */
+  nav, header, footer, button, .no-print, .action-toolbar {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #000000 !important;
+  }
+
+  #resume-preview-document, #modal-resume-preview {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+}

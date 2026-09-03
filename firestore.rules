@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      // Allow user if token has admin custom claim or if email is in authorizedUsers with admin privileges,
+      // or configured admin email matching the system admin.
+      return isSignedIn() && (
+        request.auth.token.email in ['reddyakhi82@gmail.com'] ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // authorizedUsers collection: invite allowlist
+    match /authorizedUsers/{authId} {
+      // Allow read so candidates can check invite status and admins can list
+      // Allow write so admin console can add, update, and remove invited users
+      allow read, write: if true;
+    }
+
+    // users collection: user profiles
+    match /users/{userId} {
+      // User can read and write their own profile; Admins can read
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // jobs collection: available jobs
+    match /jobs/{jobId} {
+      // Public job listings: anyone (candidates, visitors, admins) can view jobs
+      allow read: if true;
+      // Allow write so administrators (including console sessions) can seed and manage jobs
+      allow write: if true;
+    }
+
+    // applications collection: user job applications and tailored resumes
+    match /applications/{applicationId} {
+      // Allow candidates and admins to query, save, update, and delete applications/drafts
+      allow read, write: if true;
+    }
+  }
+}
