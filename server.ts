@@ -29,14 +29,11 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 
-// Default Gemini API key provided by user
-const DEFAULT_GEMINI_KEY = 'AQ.Ab8RN6J9KDLeZCp1JP94mRhpx5FZQq7S438o1rwmOCvl735h7Q';
-
 // Lazy initializer for Gemini API client
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || '';
     aiClient = new GoogleGenAI({ apiKey });
   }
   return aiClient;
@@ -770,7 +767,7 @@ app.post('/api/ai/extract-resume', async (req, res) => {
     const effectiveText = textContent || extractedPdfText || '';
 
     // 2. Attempt Gemini AI structured parsing if API key is available
-    if (process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY) {
+    if (process.env.GEMINI_API_KEY) {
       const ai = getGeminiClient();
       const extractionPrompt = `You are a high-precision ATS resume parser. Analyze this candidate resume document and extract all essential profile information.
 Output MUST be a strictly valid JSON object with these EXACT keys:
@@ -1252,7 +1249,7 @@ app.post('/api/jobs/search', async (req, res) => {
     const liveInternetJobs = await fetchRealTimeInternetJobs(query, location, country || 'USA', source);
 
     // If Gemini is available, supplement with LinkedIn/Indeed style postings for USA
-    if (process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY) {
+    if (process.env.GEMINI_API_KEY) {
       try {
         const ai = getGeminiClient();
         const targetCountryLabel = country === 'USA' || !country ? 'USA / United States' : country;
@@ -1329,6 +1326,9 @@ async function start() {
   if (process.env.NODE_ENV === 'production' || hasDist) {
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      if (/\.(js|css|json|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|wasm|map)$/i.test(req.path)) {
+        return res.status(404).send('Not found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {
