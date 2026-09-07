@@ -7,7 +7,10 @@ import { Jobs } from './pages/Jobs';
 import { JobDetails } from './pages/JobDetails';
 import { ApplyFlow } from './pages/ApplyFlow';
 import { Applications } from './pages/Applications';
+import { ResumeBuilder } from './pages/ResumeBuilder';
 import { Admin } from './pages/Admin';
+import { FirestorePermissionBanner } from './components/FirestorePermissionBanner';
+import { FeatureAccessGate } from './components/FeatureAccessGate';
 import {
   Briefcase,
   Home as HomeIcon,
@@ -18,10 +21,12 @@ import {
   Building2,
   Menu,
   X,
+  Sparkles,
+  Lock,
 } from 'lucide-react';
 
 export default function App() {
-  const { user, profile, loading, isAuthorized, signOut } = useAuth();
+  const { user, profile, loading, isAuthorized, permissions, signOut } = useAuth();
 
   // Route & Navigation State
   const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname);
@@ -37,6 +42,24 @@ export default function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Auto-redirect if candidate is on a feature they don't have access to
+  React.useEffect(() => {
+    if (user && isAuthorized) {
+      if ((currentTab === 'jobs' || currentTab === 'jobDetails' || currentTab === 'apply') && !permissions.jobs) {
+        if (permissions.resumeBuilder) setCurrentTab('resumeBuilder');
+        else if (permissions.applications) setCurrentTab('applications');
+      } else if (currentTab === 'applications' && !permissions.applications) {
+        if (permissions.resumeBuilder) setCurrentTab('resumeBuilder');
+        else if (permissions.jobs) setCurrentTab('jobs');
+      } else if (currentTab === 'resumeBuilder' && !permissions.resumeBuilder) {
+        if (permissions.jobs) setCurrentTab('jobs');
+        else if (permissions.applications) setCurrentTab('applications');
+      } else if (currentTab === 'home' && !permissions.jobs && permissions.resumeBuilder) {
+        setCurrentTab('resumeBuilder');
+      }
+    }
+  }, [user, isAuthorized, permissions, currentTab]);
 
   const navigateToRoute = (path: string) => {
     window.history.pushState({}, '', path);
@@ -141,6 +164,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 flex flex-col">
+      <FirestorePermissionBanner />
       {/* Top Navigation Bar */}
       <header className="bg-white border-b border-neutral-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -186,6 +210,7 @@ export default function App() {
             >
               <Briefcase className="w-3.5 h-3.5" />
               <span>Jobs</span>
+              {!permissions.jobs && <Lock className="w-3 h-3 text-neutral-400 ml-0.5" />}
             </button>
 
             <button
@@ -199,6 +224,21 @@ export default function App() {
             >
               <FileCheck2 className="w-3.5 h-3.5" />
               <span>Applications</span>
+              {!permissions.applications && <Lock className="w-3 h-3 text-neutral-400 ml-0.5" />}
+            </button>
+
+            <button
+              id="nav-resume-builder"
+              onClick={() => navigateTo('resumeBuilder')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                currentTab === 'resumeBuilder'
+                  ? 'bg-neutral-100 text-neutral-900 font-semibold'
+                  : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Resume Builder</span>
+              {!permissions.resumeBuilder && <Lock className="w-3 h-3 text-neutral-400 ml-0.5" />}
             </button>
 
             <button
@@ -258,14 +298,24 @@ export default function App() {
               className="w-full text-left py-2 px-3 rounded text-xs font-medium text-neutral-800 hover:bg-neutral-50 flex items-center gap-2"
             >
               <Briefcase className="w-4 h-4" />
-              <span>Jobs</span>
+              <span className="flex-1">Jobs</span>
+              {!permissions.jobs && <Lock className="w-3.5 h-3.5 text-neutral-400" />}
             </button>
             <button
               onClick={() => navigateTo('applications')}
               className="w-full text-left py-2 px-3 rounded text-xs font-medium text-neutral-800 hover:bg-neutral-50 flex items-center gap-2"
             >
               <FileCheck2 className="w-4 h-4" />
-              <span>Applications</span>
+              <span className="flex-1">Applications</span>
+              {!permissions.applications && <Lock className="w-3.5 h-3.5 text-neutral-400" />}
+            </button>
+            <button
+              onClick={() => navigateTo('resumeBuilder')}
+              className="w-full text-left py-2 px-3 rounded text-xs font-medium text-neutral-800 hover:bg-neutral-50 flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <span className="flex-1">Resume Builder</span>
+              {!permissions.resumeBuilder && <Lock className="w-3.5 h-3.5 text-neutral-400" />}
             </button>
             <button
               onClick={() => navigateTo('profile')}
@@ -299,33 +349,57 @@ export default function App() {
         )}
 
         {currentTab === 'jobs' && (
-          <Jobs
-            onSelectJob={jobId => navigateTo('jobDetails', jobId)}
-            onApplyJob={jobId => navigateTo('apply', jobId)}
-          />
+          !permissions.jobs ? (
+            <FeatureAccessGate featureName="Job Search Portal" onNavigateAllowed={navigateTo} />
+          ) : (
+            <Jobs
+              onSelectJob={jobId => navigateTo('jobDetails', jobId)}
+              onApplyJob={jobId => navigateTo('apply', jobId)}
+            />
+          )
         )}
 
         {currentTab === 'jobDetails' && selectedJobId && (
-          <JobDetails
-            jobId={selectedJobId}
-            onBack={() => navigateTo('jobs')}
-            onApply={jobId => navigateTo('apply', jobId)}
-          />
+          !permissions.jobs ? (
+            <FeatureAccessGate featureName="Job Search Portal" onNavigateAllowed={navigateTo} />
+          ) : (
+            <JobDetails
+              jobId={selectedJobId}
+              onBack={() => navigateTo('jobs')}
+              onApply={jobId => navigateTo('apply', jobId)}
+            />
+          )
         )}
 
         {currentTab === 'apply' && selectedJobId && (
-          <ApplyFlow
-            jobId={selectedJobId}
-            onBack={() => navigateTo('jobDetails', selectedJobId)}
-            onNavigateApplications={() => navigateTo('applications')}
-          />
+          !permissions.applications ? (
+            <FeatureAccessGate featureName="Applications & Tailor Flow" onNavigateAllowed={navigateTo} />
+          ) : (
+            <ApplyFlow
+              jobId={selectedJobId}
+              onBack={() => navigateTo('jobDetails', selectedJobId)}
+              onNavigateApplications={() => navigateTo('applications')}
+            />
+          )
         )}
 
         {currentTab === 'applications' && (
-          <Applications
-            onContinueApplication={jobId => navigateTo('apply', jobId)}
-            onViewJob={jobId => navigateTo('jobDetails', jobId)}
-          />
+          !permissions.applications ? (
+            <FeatureAccessGate featureName="Applications Tracker" onNavigateAllowed={navigateTo} />
+          ) : (
+            <Applications
+              onContinueApplication={jobId => navigateTo('apply', jobId)}
+              onViewJob={jobId => navigateTo('jobDetails', jobId)}
+            />
+          )
+        )}
+
+        {currentTab === 'resumeBuilder' && (
+          !permissions.resumeBuilder ? (
+            <FeatureAccessGate featureName="Resume Builder" onNavigateAllowed={navigateTo} />
+          ) : (
+            <ResumeBuilder />
+          )
         )}
 
         {currentTab === 'profile' && (

@@ -1,19 +1,138 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { userService } from '../services/userService';
-import { User, Mail, Phone, Globe, MapPin, Briefcase, FileText, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import {
+  User, Mail, Phone, Globe, MapPin, Briefcase, Upload,
+  CheckCircle2, AlertCircle, Loader2, Sparkles, Bot, KeyRound,
+  ChevronDown, ChevronUp, Shield, Zap, Star,
+} from 'lucide-react';
 
-const COUNTRIES = ['India', 'USA', 'UK', 'Canada', 'Australia', 'Germany', 'Singapore', 'UAE'];
+const COUNTRIES = ['USA', 'India', 'UK', 'Canada', 'Australia', 'Germany', 'Singapore', 'UAE'];
 
 const POPULAR_LOCATIONS: Record<string, string[]> = {
+  USA: ['San Francisco', 'New York', 'Seattle', 'Austin', 'Boston', 'Chicago', 'Remote'],
   India: ['Hyderabad', 'Bangalore', 'Mumbai', 'Chennai', 'Delhi NCR', 'Pune'],
-  USA: ['San Francisco', 'New York', 'Seattle', 'Austin', 'Boston', 'Chicago'],
   UK: ['London', 'Manchester', 'Birmingham', 'Edinburgh', 'Cambridge'],
   Canada: ['Toronto', 'Vancouver', 'Montreal', 'Ottawa', 'Calgary'],
   Australia: ['Sydney', 'Melbourne', 'Brisbane', 'Perth'],
   Germany: ['Berlin', 'Munich', 'Frankfurt', 'Hamburg'],
   Singapore: ['Singapore'],
   UAE: ['Dubai', 'Abu Dhabi'],
+};
+
+// Curated AI model catalog
+interface AiModelOption {
+  id: string;
+  label: string;
+  provider: 'google' | 'openai' | 'anthropic' | 'mistral' | 'other';
+  badge: 'Free' | 'Premium' | 'Fast' | 'Powerful';
+  description: string;
+  requiresKey: boolean;
+  color: string;
+}
+
+const AI_MODELS: AiModelOption[] = [
+  // Google (uses server key — free for user)
+  {
+    id: 'gemini-2.0-flash',
+    label: 'Gemini 2.0 Flash',
+    provider: 'google',
+    badge: 'Free',
+    description: 'Fast, intelligent, and free. Default server-powered Gemini model.',
+    requiresKey: false,
+    color: 'bg-blue-50 border-blue-200 text-blue-800',
+  },
+  {
+    id: 'gemini-2.5-flash',
+    label: 'Gemini 2.5 Flash',
+    provider: 'google',
+    badge: 'Fast',
+    description: 'Latest Gemini Flash variant — great quality with low latency.',
+    requiresKey: false,
+    color: 'bg-blue-50 border-blue-200 text-blue-800',
+  },
+  {
+    id: 'gemini-2.5-pro',
+    label: 'Gemini 2.5 Pro',
+    provider: 'google',
+    badge: 'Powerful',
+    description: 'Most capable Google model. Requires your own Gemini API key.',
+    requiresKey: true,
+    color: 'bg-violet-50 border-violet-200 text-violet-800',
+  },
+  // OpenAI
+  {
+    id: 'gpt-4o-mini',
+    label: 'GPT-4o Mini',
+    provider: 'openai',
+    badge: 'Fast',
+    description: 'OpenAI\'s efficient and affordable model. Requires your own OpenAI key.',
+    requiresKey: true,
+    color: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+  },
+  {
+    id: 'gpt-4o',
+    label: 'GPT-4o',
+    provider: 'openai',
+    badge: 'Powerful',
+    description: 'OpenAI\'s most capable model with vision and reasoning. Requires your own OpenAI key.',
+    requiresKey: true,
+    color: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+  },
+  // Anthropic Claude
+  {
+    id: 'claude-3-5-haiku-20241022',
+    label: 'Claude 3.5 Haiku',
+    provider: 'anthropic',
+    badge: 'Fast',
+    description: 'Anthropic\'s fastest model. Excellent for resume generation. Requires your Claude key.',
+    requiresKey: true,
+    color: 'bg-amber-50 border-amber-200 text-amber-800',
+  },
+  {
+    id: 'claude-3-5-sonnet-20241022',
+    label: 'Claude 3.5 Sonnet',
+    provider: 'anthropic',
+    badge: 'Powerful',
+    description: 'Anthropic\'s best-in-class model. World-class writing quality. Requires your Claude key.',
+    requiresKey: true,
+    color: 'bg-amber-50 border-amber-200 text-amber-800',
+  },
+  // Mistral
+  {
+    id: 'mistral-small-latest',
+    label: 'Mistral Small',
+    provider: 'mistral',
+    badge: 'Fast',
+    description: 'Efficient European AI model. Requires your Mistral API key.',
+    requiresKey: true,
+    color: 'bg-rose-50 border-rose-200 text-rose-800',
+  },
+  // Custom
+  {
+    id: '__custom__',
+    label: 'Custom / Other',
+    provider: 'other',
+    badge: 'Premium',
+    description: 'Use any custom model (e.g. Llama, Groq, local OpenAI-compatible). Requires your API key.',
+    requiresKey: true,
+    color: 'bg-neutral-50 border-neutral-200 text-neutral-700',
+  },
+];
+
+const PROVIDER_LABELS: Record<string, string> = {
+  google: '🔷 Google (Gemini)',
+  openai: '🟢 OpenAI (GPT)',
+  anthropic: '🟠 Anthropic (Claude)',
+  mistral: '🔴 Mistral AI',
+  other: '⚙️ Custom / Other',
+};
+
+const BADGE_STYLES: Record<string, string> = {
+  Free: 'bg-emerald-100 text-emerald-800',
+  Fast: 'bg-blue-100 text-blue-800',
+  Powerful: 'bg-violet-100 text-violet-800',
+  Premium: 'bg-amber-100 text-amber-800',
 };
 
 interface ProfileSetupProps {
@@ -27,9 +146,9 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
   const [name, setName] = useState(profile?.name || user?.displayName || '');
   const [email] = useState(profile?.email || user?.email || '');
   const [phone, setPhone] = useState(profile?.phone || '');
-  const [country, setCountry] = useState(profile?.country || 'India');
-  const [location, setLocation] = useState(profile?.location || 'Hyderabad');
-  const [jobRole, setJobRole] = useState(profile?.jobRole || 'React Developer');
+  const [country, setCountry] = useState(profile?.country || 'USA');
+  const [location, setLocation] = useState(profile?.location || 'San Francisco');
+  const [jobRole, setJobRole] = useState(profile?.jobRole || 'Software Engineer');
   const [baseResumeText, setBaseResumeText] = useState(
     profile?.baseResumeText ||
       `JOHN DOE
@@ -60,14 +179,24 @@ Bachelor of Technology in Computer Science & Engineering
 State University, Graduated 2020`
   );
   const [resumeFileName, setResumeFileName] = useState(profile?.baseResumeFileName || 'base_resume.txt');
+
+  // AI Model state
+  const [selectedModelId, setSelectedModelId] = useState(profile?.aiModel || 'gemini-2.0-flash');
+  const [customApiKey, setCustomApiKey] = useState(profile?.customApiKey || '');
+  const [customModelName, setCustomModelName] = useState(profile?.customModelName || '');
+  const [showAiSection, setShowAiSection] = useState(isEditing);
+  const [showApiKey, setShowApiKey] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extractedNotice, setExtractedNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileFeedback, setFileFeedback] = useState<string | null>(null);
 
-  // Suggested locations based on country
   const locationSuggestions = POPULAR_LOCATIONS[country] || ['Remote', 'Capital City'];
+
+  const selectedModel = AI_MODELS.find(m => m.id === selectedModelId) || AI_MODELS[0];
+  const isCustom = selectedModelId === '__custom__';
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -86,7 +215,6 @@ State University, Graduated 2020`
       if (file.type.includes('text') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         textContent = await file.text();
       } else {
-        // Read file as ArrayBuffer and convert to base64
         const arrayBuffer = await file.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
         let binary = '';
@@ -96,7 +224,6 @@ State University, Graduated 2020`
         base64Data = btoa(binary);
       }
 
-      // Call extraction API
       const res = await fetch('/api/ai/extract-resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,31 +235,17 @@ State University, Graduated 2020`
         }),
       });
 
-      if (!res.ok) {
-        throw new Error(`Resume extraction failed with status ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`Resume extraction failed with status ${res.status}`);
 
       const result = await res.json();
       if (result?.data) {
         const extracted = result.data;
-        if (extracted.name && extracted.name.trim()) {
-          setName(extracted.name.trim());
-        }
-        if (extracted.phone && extracted.phone.trim()) {
-          setPhone(extracted.phone.trim());
-        }
-        if (extracted.location && extracted.location.trim()) {
-          setLocation(extracted.location.trim());
-        }
-        if (extracted.country && COUNTRIES.includes(extracted.country)) {
-          setCountry(extracted.country);
-        }
-        if (extracted.jobRole && extracted.jobRole.trim()) {
-          setJobRole(extracted.jobRole.trim());
-        }
-        if (extracted.baseResumeText && extracted.baseResumeText.trim()) {
-          setBaseResumeText(extracted.baseResumeText.trim());
-        }
+        if (extracted.name?.trim()) setName(extracted.name.trim());
+        if (extracted.phone?.trim()) setPhone(extracted.phone.trim());
+        if (extracted.location?.trim()) setLocation(extracted.location.trim());
+        if (extracted.country && COUNTRIES.includes(extracted.country)) setCountry(extracted.country);
+        if (extracted.jobRole?.trim()) setJobRole(extracted.jobRole.trim());
+        if (extracted.baseResumeText?.trim()) setBaseResumeText(extracted.baseResumeText.trim());
 
         setFileFeedback(null);
         setExtractedNotice(
@@ -144,14 +257,9 @@ State University, Graduated 2020`
     } catch (err: any) {
       console.error('Resume extraction error:', err);
       if (file.type.includes('text') || file.name.endsWith('.txt')) {
-        try {
-          const txt = await file.text();
-          setBaseResumeText(txt);
-        } catch {}
+        try { const txt = await file.text(); setBaseResumeText(txt); } catch {}
       }
-      setFileFeedback(
-        `Uploaded "${file.name}". You can inspect or tweak the extracted textual profile below for ATS tailoring.`
-      );
+      setFileFeedback(`Uploaded "${file.name}". You can inspect or tweak the extracted textual profile below.`);
     } finally {
       setExtracting(false);
     }
@@ -161,24 +269,17 @@ State University, Graduated 2020`
     e.preventDefault();
     if (!user) return;
 
-    if (!name.trim()) {
-      setError('Please provide your full name.');
+    if (!name.trim()) { setError('Please provide your full name.'); return; }
+    if (!phone.trim()) { setError('Please provide your phone number.'); return; }
+    if (!location.trim()) { setError('Please select or enter your location city.'); return; }
+    if (!jobRole.trim()) { setError('Please specify your target job role.'); return; }
+    if (!baseResumeText.trim()) { setError('Please upload or provide your base resume details.'); return; }
+    if (selectedModel.requiresKey && !customApiKey.trim() && !isCustom) {
+      setError(`An API key is required for ${selectedModel.label}. Please enter your API key below.`);
       return;
     }
-    if (!phone.trim()) {
-      setError('Please provide your phone number.');
-      return;
-    }
-    if (!location.trim()) {
-      setError('Please select or enter your location city.');
-      return;
-    }
-    if (!jobRole.trim()) {
-      setError('Please specify your target job role.');
-      return;
-    }
-    if (!baseResumeText.trim()) {
-      setError('Please upload or provide your base resume details.');
+    if (isCustom && !customModelName.trim()) {
+      setError('Please enter the custom model name/identifier.');
       return;
     }
 
@@ -197,7 +298,11 @@ State University, Graduated 2020`
         baseResumeText: baseResumeText.trim(),
         baseResumeFileName: resumeFileName,
         baseResumeUrl: '',
-      });
+        aiModel: selectedModelId,
+        customApiKey: customApiKey.trim() || undefined,
+        customModelName: isCustom ? customModelName.trim() : undefined,
+        customModelProvider: selectedModel.provider,
+      } as any);
 
       await refreshProfile();
       onCompleted();
@@ -209,6 +314,13 @@ State University, Graduated 2020`
     }
   };
 
+  const groupedModels = AI_MODELS.reduce((acc, m) => {
+    const p = m.provider;
+    if (!acc[p]) acc[p] = [];
+    acc[p].push(m);
+    return acc;
+  }, {} as Record<string, AiModelOption[]>);
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6">
       <div className="bg-white border border-neutral-200 rounded-xl shadow-sm p-6 sm:p-8 space-y-6">
@@ -217,8 +329,7 @@ State University, Graduated 2020`
             {isEditing ? 'Profile Settings' : 'Complete Your Profile'}
           </h1>
           <p className="text-sm text-neutral-600 mt-1">
-            Configure your personal information, preferred job location, and base resume. Location
-            matches will prioritize jobs in your city and country.
+            Configure your personal information, job preferences, base resume, and AI model for tailoring.
           </p>
         </div>
 
@@ -232,9 +343,7 @@ State University, Graduated 2020`
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Personal Info */}
           <div className="space-y-4">
-            <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">
-              Personal Information
-            </h2>
+            <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">Personal Information</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -254,9 +363,7 @@ State University, Graduated 2020`
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Email (From Google)
-                </label>
+                <label className="block text-xs font-medium text-neutral-700 mb-1">Email (From Google)</label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
                   <input
@@ -271,9 +378,7 @@ State University, Graduated 2020`
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
-                Phone Number
-              </label>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">Phone Number</label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
                 <input
@@ -281,7 +386,7 @@ State University, Graduated 2020`
                   type="tel"
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
-                  placeholder="9876543210"
+                  placeholder="+1 (555) 000-0000"
                   required
                   className="w-full pl-9 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
                 />
@@ -289,10 +394,9 @@ State University, Graduated 2020`
             </div>
           </div>
 
+          {/* Job Preferences */}
           <div className="border-t border-neutral-100 pt-5 space-y-4">
-            <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">
-              Job Preferences & Location
-            </h2>
+            <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">Job Preferences & Location</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -305,25 +409,19 @@ State University, Graduated 2020`
                     onChange={e => {
                       setCountry(e.target.value);
                       const defaults = POPULAR_LOCATIONS[e.target.value];
-                      if (defaults && defaults.length > 0) {
-                        setLocation(defaults[0]);
-                      }
+                      if (defaults?.length > 0) setLocation(defaults[0]);
                     }}
                     className="w-full pl-9 pr-3 py-2 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
                   >
                     {COUNTRIES.map(c => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Location (City)
-                </label>
+                <label className="block text-xs font-medium text-neutral-700 mb-1">Location (City)</label>
                 <div className="relative">
                   <MapPin className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
                   <input
@@ -331,12 +429,11 @@ State University, Graduated 2020`
                     type="text"
                     value={location}
                     onChange={e => setLocation(e.target.value)}
-                    placeholder="e.g. Hyderabad"
+                    placeholder="e.g. San Francisco"
                     required
                     className="w-full pl-9 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
                   />
                 </div>
-                {/* Popular suggestions */}
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
                   {locationSuggestions.map(loc => (
                     <button
@@ -357,9 +454,7 @@ State University, Graduated 2020`
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
-                Target Job Role
-              </label>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">Target Job Role</label>
               <div className="relative">
                 <Briefcase className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
                 <input
@@ -375,14 +470,11 @@ State University, Graduated 2020`
             </div>
           </div>
 
+          {/* Base Resume */}
           <div className="border-t border-neutral-100 pt-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">
-                Base Resume
-              </h2>
-              <span className="text-xs text-neutral-500">
-                Kept intact as your source of truth
-              </span>
+              <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">Base Resume</h2>
+              <span className="text-xs text-neutral-500">Kept intact as your source of truth</span>
             </div>
 
             <div className="border-2 border-dashed border-neutral-200 rounded-lg p-5 text-center hover:border-neutral-400 transition-colors bg-neutral-50/50">
@@ -446,6 +538,182 @@ State University, Graduated 2020`
                 The AI will use only the authentic facts, companies, and skills present in this base resume.
               </p>
             </div>
+          </div>
+
+          {/* ========== AI MODEL SELECTOR ========== */}
+          <div className="border-t border-neutral-100 pt-5">
+            <button
+              type="button"
+              onClick={() => setShowAiSection(!showAiSection)}
+              className="w-full flex items-center justify-between cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center shadow-sm">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="text-left">
+                  <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">AI Model Settings</h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Current: <span className="font-medium text-neutral-700">{selectedModel.label}</span>
+                    {selectedModel.requiresKey && customApiKey ? (
+                      <span className="ml-2 inline-flex items-center gap-1 text-emerald-700">
+                        <Shield className="w-3 h-3" /> Key saved
+                      </span>
+                    ) : null}
+                  </p>
+                </div>
+              </div>
+              {showAiSection ? (
+                <ChevronUp className="w-4 h-4 text-neutral-400 group-hover:text-neutral-600" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-neutral-400 group-hover:text-neutral-600" />
+              )}
+            </button>
+
+            {showAiSection && (
+              <div className="mt-4 space-y-4">
+                {/* Info banner */}
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-800 flex items-start gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold">Free models</span> use the server's built-in Gemini key — no setup needed.{' '}
+                    <span className="font-semibold">Premium models</span> (GPT-4o, Claude, Gemini Pro) require your own API key for unlimited, highest-quality generation.
+                  </div>
+                </div>
+
+                {/* Model groups */}
+                <div className="space-y-3">
+                  {Object.entries(groupedModels).map(([provider, models]) => (
+                    <div key={provider}>
+                      <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-widest mb-1.5">
+                        {PROVIDER_LABELS[provider] || provider}
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {models.map(model => (
+                          <button
+                            key={model.id}
+                            type="button"
+                            id={`ai-model-${model.id}`}
+                            onClick={() => setSelectedModelId(model.id)}
+                            className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                              selectedModelId === model.id
+                                ? 'border-neutral-900 bg-neutral-900 text-white shadow-md'
+                                : `border-neutral-200 hover:border-neutral-400 bg-white`
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-xs font-bold truncate ${selectedModelId === model.id ? 'text-white' : 'text-neutral-900'}`}>
+                                    {model.label}
+                                  </span>
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    selectedModelId === model.id
+                                      ? 'bg-white/20 text-white'
+                                      : BADGE_STYLES[model.badge]
+                                  }`}>
+                                    {model.badge === 'Free' && <Zap className="w-2.5 h-2.5 mr-0.5" />}
+                                    {model.badge === 'Powerful' && <Star className="w-2.5 h-2.5 mr-0.5" />}
+                                    {model.badge}
+                                  </span>
+                                  {model.requiresKey && (
+                                    <span className={`inline-flex items-center gap-0.5 text-[10px] ${selectedModelId === model.id ? 'text-white/70' : 'text-neutral-400'}`}>
+                                      <KeyRound className="w-2.5 h-2.5" /> Key
+                                    </span>
+                                  )}
+                                </div>
+                                <p className={`text-[11px] mt-0.5 leading-tight ${selectedModelId === model.id ? 'text-white/70' : 'text-neutral-500'}`}>
+                                  {model.description}
+                                </p>
+                              </div>
+                              {selectedModelId === model.id && (
+                                <CheckCircle2 className="w-4 h-4 text-white shrink-0 mt-0.5" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* API Key Input — shown when model requires a key */}
+                {(selectedModel.requiresKey || isCustom) && (
+                  <div className="space-y-3 p-4 rounded-xl bg-neutral-50 border border-neutral-200">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-neutral-600" />
+                      <span className="text-xs font-semibold text-neutral-800">
+                        {isCustom ? 'Custom Model Settings' : `${selectedModel.label} API Key`}
+                      </span>
+                    </div>
+
+                    {isCustom && (
+                      <div>
+                        <label className="block text-xs font-medium text-neutral-700 mb-1">
+                          Custom Model Name / Identifier
+                        </label>
+                        <input
+                          id="custom-model-name-input"
+                          type="text"
+                          value={customModelName}
+                          onChange={e => setCustomModelName(e.target.value)}
+                          placeholder="e.g. llama-3-70b, mixtral-8x7b, gpt-4-turbo"
+                          className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-700 mb-1">
+                        API Key
+                        <span className="text-neutral-400 font-normal ml-1">
+                          ({selectedModel.provider === 'openai'
+                            ? 'from platform.openai.com'
+                            : selectedModel.provider === 'anthropic'
+                            ? 'from console.anthropic.com'
+                            : selectedModel.provider === 'mistral'
+                            ? 'from console.mistral.ai'
+                            : selectedModel.provider === 'google'
+                            ? 'from aistudio.google.com'
+                            : 'your provider console'
+                          })
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+                        <input
+                          id="custom-api-key-input"
+                          type={showApiKey ? 'text' : 'password'}
+                          value={customApiKey}
+                          onChange={e => setCustomApiKey(e.target.value)}
+                          placeholder={
+                            selectedModel.provider === 'openai'
+                              ? 'sk-...'
+                              : selectedModel.provider === 'anthropic'
+                              ? 'sk-ant-...'
+                              : selectedModel.provider === 'mistral'
+                              ? 'Your Mistral key...'
+                              : 'Your API key...'
+                          }
+                          className="w-full pl-9 pr-20 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-3 top-2 text-xs text-neutral-500 hover:text-neutral-800 cursor-pointer font-medium"
+                        >
+                          {showApiKey ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-neutral-400 mt-1 flex items-center gap-1">
+                        <Shield className="w-3 h-3" />
+                        Stored only in your profile. Never shared or logged by this app.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="pt-3">

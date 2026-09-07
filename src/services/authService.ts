@@ -17,19 +17,26 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase/config';
-import { AuthorizedUser } from '../types';
+import { AuthorizedUser, UserPermissions } from '../types';
 import { handleFirestoreError, OperationType } from '../firebase/errorHandler';
 
-const ADMIN_EMAILS = ['reddyakhi82@gmail.com'];
+export const DEFAULT_USER_PERMISSIONS: UserPermissions = {
+  resumeBuilder: true,
+  jobs: true,
+  applications: true,
+};
+
+const ADMIN_EMAILS = ['admin@jobportal.com'];
 const ADMIN_SESSION_KEY = 'portal_admin_session_auth';
 const ADMIN_USERNAME_KEY = 'portal_admin_username';
 const LOCAL_USERS_CACHE_KEY = 'portal_local_authorized_users';
+let authListeners: ((user: FirebaseUser | null) => void)[] = [];
 
 export const authService = {
   // Admin credentials verification for /admin
   verifyAdminCredentials(usernameInput: string, passwordInput: string): boolean {
     const normUser = (usernameInput || '').trim().toLowerCase();
-    const validUsers = ['admin', 'reddyakhi82@gmail.com', 'admin@jobportal.com'];
+    const validUsers = ['admin', 'admin@jobportal.com'];
     const validPasswords = ['admin123', 'Admin@2026!', 'admin'];
 
     const userMatches = validUsers.includes(normUser);
@@ -57,13 +64,16 @@ export const authService = {
     }
   },
 
-  clearAdminSession(): void {
+  async clearAdminSession(): Promise<void> {
     try {
       sessionStorage.removeItem(ADMIN_SESSION_KEY);
       sessionStorage.removeItem(ADMIN_USERNAME_KEY);
     } catch (e) {
       console.warn('Could not clear admin session:', e);
     }
+    try {
+      await firebaseSignOut(auth);
+    } catch (e) {}
   },
 
   // Check if an email is an admin
@@ -72,58 +82,153 @@ export const authService = {
     return ADMIN_EMAILS.includes(email.toLowerCase().trim());
   },
 
-  // Check if user's normalized email is in authorizedUsers collection or admin list
-  async checkEmailAuthorized(rawEmail: string): Promise<boolean> {
+  // Get full authorization details and feature permissions for an email
+  async getUserAuthorization(rawEmail: string): Promise<{
+    authorized: boolean;
+    permissions: UserPermissions;
+    status: 'active' | 'disabled';
+  }> {
     const normalizedEmail = (rawEmail || '').toLowerCase().trim();
-    if (!normalizedEmail) return false;
-
-    if (this.isAdminEmail(normalizedEmail)) {
-      return true;
+    if (!normalizedEmail) {
+      return { authorized: false, permissions: DEFAULT_USER_PERMISSIONS, status: 'disabled' };
     }
+
+    let firestoreChecked = false;
 
     // 1. Check direct doc ID in Firestore
     try {
       const id = normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_');
       const docRef = doc(db, 'authorizedUsers', id);
       const snap = await getDoc(docRef);
+      firestoreChecked = true;
       if (snap.exists()) {
         const data = snap.data();
         if (data && data.status === 'active') {
-          return true;
+          return {
+            authorized: true,
+            permissions: {
+              resumeBuilder: data.permissions?.resumeBuilder !== false,
+              jobs: data.permissions?.jobs !== false,
+              applications: data.permissions?.applications !== false,
+            },
+            status: 'active',
+          };
+        } else {
+          return { authorized: false, permissions: DEFAULT_USER_PERMISSIONS, status: 'disabled' };
         }
       }
     } catch (err) {
-      // Continue to query check
+      // Network or permission error - fall through to query or offline cache
     }
 
     // 2. Query Firestore by email field
     try {
       const q = query(
         collection(db, 'authorizedUsers'),
-        where('email', '==', normalizedEmail),
-        where('status', '==', 'active')
+        where('email', '==', normalizedEmail)
       );
       const snap = await getDocs(q);
+      firestoreChecked = true;
       if (!snap.empty) {
-        return true;
+        const data = snap.docs[0].data();
+        if (data.status === 'active') {
+          return {
+            authorized: true,
+            permissions: {
+              resumeBuilder: data.permissions?.resumeBuilder !== false,
+              jobs: data.permissions?.jobs !== false,
+              applications: data.permissions?.applications !== false,
+            },
+            status: 'active',
+          };
+        } else {
+          return { authorized: false, permissions: DEFAULT_USER_PERMISSIONS, status: 'disabled' };
+        }
       }
     } catch (error) {
-      console.warn('Firestore check error, checking local allowlist cache:', error);
+      console.warn('Firestore query error:', error);
     }
 
-    // 3. Check local allowlist cache (fallback for resilience)
+    // CRITICAL: If Firestore was successfully reached and document is not found,
+    // the user is strictly NOT authorized. Do NOT fall back to stale local cache!
+    if (firestoreChecked) {
+      return { authorized: false, permissions: DEFAULT_USER_PERMISSIONS, status: 'disabled' };
+    }
+
+    // 3. Fallback to local cache ONLY if Firestore was unreachable (e.g. offline)
     try {
       const rawCache = localStorage.getItem(LOCAL_USERS_CACHE_KEY);
       if (rawCache) {
         const list: AuthorizedUser[] = JSON.parse(rawCache);
-        const match = list.find(u => u.email.toLowerCase().trim() === normalizedEmail && u.status === 'active');
-        if (match) return true;
+        const match = list.find(
+          u => u.email.toLowerCase().trim() === normalizedEmail && u.status === 'active'
+        );
+        if (match) {
+          return {
+            authorized: true,
+            permissions: {
+              resumeBuilder: match.permissions?.resumeBuilder !== false,
+              jobs: match.permissions?.jobs !== false,
+              applications: match.permissions?.applications !== false,
+            },
+            status: 'active',
+          };
+        }
       }
     } catch (e) {
       // ignore
     }
 
-    return false;
+    return { authorized: false, permissions: DEFAULT_USER_PERMISSIONS, status: 'disabled' };
+  },
+
+  // Check if user's normalized email is in authorizedUsers collection or admin list
+  async checkEmailAuthorized(rawEmail: string): Promise<boolean> {
+    const authDetails = await this.getUserAuthorization(rawEmail);
+    return authDetails.authorized;
+  },
+
+  // Direct email sign-in with strict invite-only verification (resilient fallback for local dev & unauthorized-domain)
+  async signInWithAuthorizedEmail(rawEmail: string): Promise<{ user: FirebaseUser; authorized: boolean }> {
+    const email = (rawEmail || '').toLowerCase().trim();
+    if (!email) {
+      throw new Error('Please enter your authorized email address.');
+    }
+
+    const isAuthorized = await this.checkEmailAuthorized(email);
+    if (!isAuthorized) {
+      throw new Error(
+        `Access Denied: The account (${email}) has not been added by an administrator. Self-registration is strictly disabled. Only users added by an administrator can log in.`
+      );
+    }
+
+    const simulatedUser = {
+      uid: 'user-' + email.replace(/[^a-zA-Z0-9]/g, '_'),
+      email: email,
+      displayName: email.split('@')[0],
+      emailVerified: true,
+    } as unknown as FirebaseUser;
+
+    try {
+      sessionStorage.setItem('portal_direct_user_session', JSON.stringify(simulatedUser));
+    } catch (e) {}
+
+    authListeners.forEach(cb => cb(simulatedUser));
+    return { user: simulatedUser, authorized: true };
+  },
+
+  getDirectUserSession(): FirebaseUser | null {
+    try {
+      const data = sessionStorage.getItem('portal_direct_user_session');
+      if (data) return JSON.parse(data);
+    } catch (e) {}
+    return null;
+  },
+
+  clearDirectUserSession(): void {
+    try {
+      sessionStorage.removeItem('portal_direct_user_session');
+    } catch (e) {}
   },
 
   // Google Sign-In with strict invite-only gate check
@@ -146,12 +251,36 @@ export const authService = {
   },
 
   async signOut(): Promise<void> {
-    await firebaseSignOut(auth);
+    this.clearDirectUserSession();
+    authListeners.forEach(cb => cb(null));
+    try {
+      await firebaseSignOut(auth);
+    } catch (e) {}
   },
 
   onAuthChanged(callback: (user: FirebaseUser | null) => void) {
-    return onAuthStateChanged(auth, callback);
+    authListeners.push(callback);
+
+    // If direct session active, notify immediately
+    const directUser = this.getDirectUserSession();
+    if (directUser) {
+      callback(directUser);
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, fbUser => {
+      if (fbUser) {
+        callback(fbUser);
+      } else if (!this.getDirectUserSession()) {
+        callback(null);
+      }
+    });
+
+    return () => {
+      authListeners = authListeners.filter(cb => cb !== callback);
+      unsubscribe();
+    };
   },
+
 
   // Admin: Get all authorized users
   async getAuthorizedUsers(): Promise<AuthorizedUser[]> {
@@ -162,10 +291,8 @@ export const authService = {
         id: d.id,
         ...(d.data() as Omit<AuthorizedUser, 'id'>),
       }));
-      // Update local cache
-      if (firestoreUsers.length > 0) {
-        localStorage.setItem(LOCAL_USERS_CACHE_KEY, JSON.stringify(firestoreUsers));
-      }
+      // Update local cache with exact Firestore snapshot
+      localStorage.setItem(LOCAL_USERS_CACHE_KEY, JSON.stringify(firestoreUsers));
       return firestoreUsers;
     } catch (error) {
       console.warn('Could not list authorized users from Firestore, reading local cache:', error);
@@ -181,15 +308,22 @@ export const authService = {
     }
   },
 
-  // Admin: Add authorized user
-  async addAuthorizedUser(email: string, phone: string): Promise<void> {
+  // Admin: Add authorized user with granular permissions
+  async addAuthorizedUser(
+    email: string,
+    phone: string,
+    permissions?: UserPermissions
+  ): Promise<void> {
     const normalizedEmail = email.toLowerCase().trim();
     const id = normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_');
+    const userPermissions = permissions || DEFAULT_USER_PERMISSIONS;
+
     const newUser: AuthorizedUser = {
       id,
       email: normalizedEmail,
       phone: phone.trim(),
       status: 'active',
+      permissions: userPermissions,
       addedAt: new Date().toISOString(),
       addedBy: auth.currentUser?.email || 'admin',
     };
@@ -210,12 +344,36 @@ export const authService = {
         email: normalizedEmail,
         phone: phone.trim(),
         status: 'active',
+        permissions: userPermissions,
         addedAt: newUser.addedAt,
         addedBy: newUser.addedBy,
       });
     } catch (error) {
       console.warn('Firestore setDoc failed, retained in local cache:', error);
       handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  },
+
+  // Admin: Update user feature permissions
+  async updateUserPermissions(id: string, permissions: UserPermissions): Promise<void> {
+    // Update local cache
+    try {
+      const cached = localStorage.getItem(LOCAL_USERS_CACHE_KEY);
+      if (cached) {
+        const list: AuthorizedUser[] = JSON.parse(cached);
+        const updated = list.map(u => (u.id === id ? { ...u, permissions } : u));
+        localStorage.setItem(LOCAL_USERS_CACHE_KEY, JSON.stringify(updated));
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    const path = `authorizedUsers/${id}`;
+    try {
+      await updateDoc(doc(db, 'authorizedUsers', id), { permissions });
+    } catch (error) {
+      console.warn('Firestore updateDoc failed, retained in local cache:', error);
+      handleFirestoreError(error, OperationType.UPDATE, path);
     }
   },
 

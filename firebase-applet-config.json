@@ -1,12 +1,9 @@
 {
-  "projectId": "supple-tracker-6c9s2",
-  "appId": "1:858254407139:web:342d76fbabc2bae7be5cd6",
-  "apiKey": "AIzaSyCBSpdLWdO3G0KHAzgOKIOjm_t2gNDEPTw",
-  "authDomain": "supple-tracker-6c9s2.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-jobapplicationpo-e5994c60-d313-4507-9464-7e946cc95e65",
-  "storageBucket": "supple-tracker-6c9s2.firebasestorage.app",
-  "messagingSenderId": "858254407139",
-  "measurementId": "",
-  "oAuthClientId": "858254407139-g811qpdl3qm5m1me2f05vpl6537surhl.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "apiKey": "AIzaSyAQj5GOjecjwXpK7TrelSuXx7eB9fvhCbU",
+  "authDomain": "project-jp-d88c0.firebaseapp.com",
+  "projectId": "project-jp-d88c0",
+  "storageBucket": "project-jp-d88c0.firebasestorage.app",
+  "messagingSenderId": "373385097204",
+  "appId": "1:373385097204:web:3cf326cc494bc7597b53a1",
+  "measurementId": "G-E87YJ9XBXE"
 }

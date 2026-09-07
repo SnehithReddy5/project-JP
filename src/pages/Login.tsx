@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
 import { authService } from '../services/authService';
-import { ShieldCheck, ArrowRight, AlertCircle, Sparkles, Building2, FileCheck } from 'lucide-react';
+import { firebaseConfig } from '../firebase/config';
+import {
+  ShieldCheck,
+  ArrowRight,
+  AlertCircle,
+  Sparkles,
+  Building2,
+  FileCheck,
+  ExternalLink,
+  Mail,
+  KeyRound,
+} from 'lucide-react';
 
 interface LoginProps {
   onSuccess: () => void;
@@ -10,19 +21,54 @@ interface LoginProps {
 export const Login: React.FC<LoginProps> = ({ onSuccess, onNavigateAdmin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
+  const [authorizedEmailInput, setAuthorizedEmailInput] = useState('');
+  const [showDirectAuth, setShowDirectAuth] = useState(false);
 
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
       setError(null);
+      setIsUnauthorizedDomain(false);
       await authService.signInWithGoogle();
       onSuccess();
     } catch (err: any) {
       console.error('Sign in error:', err);
-      setError(
-        err?.message ||
-          'Access Denied: Your account has not been added by an administrator. Self-registration is strictly disabled until an admin adds your email to the authorized roster.'
-      );
+      const errMsg = err?.message || String(err);
+      if (
+        errMsg.includes('unauthorized-domain') ||
+        err?.code === 'auth/unauthorized-domain'
+      ) {
+        setIsUnauthorizedDomain(true);
+        setError(
+          `Firebase Domain Not Authorized (auth/unauthorized-domain): Your current domain (localhost / 127.0.0.1) has not been added to the Firebase Console Authorized Domains list for project "${firebaseConfig.projectId}".`
+        );
+      } else {
+        setError(
+          errMsg ||
+            'Access Denied: Your account has not been added by an administrator. Self-registration is strictly disabled until an admin adds your email to the authorized roster.'
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDirectAuthorizedSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authorizedEmailInput.trim()) {
+      setError('Please enter your email address.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      await authService.signInWithAuthorizedEmail(authorizedEmailInput.trim());
+      onSuccess();
+    } catch (err: any) {
+      console.error('Direct auth error:', err);
+      setError(err?.message || 'Access Denied: Email not authorized by administrator.');
     } finally {
       setLoading(false);
     }
@@ -52,16 +98,43 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onNavigateAdmin }) => {
         </div>
 
         {error && (
-          <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2.5">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
-            <div>
-              <p className="font-semibold text-red-900">Access Denied</p>
-              <p className="text-xs mt-0.5 text-red-700 leading-relaxed">{error}</p>
+          <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm space-y-2">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
+              <div>
+                <p className="font-semibold text-red-900">
+                  {isUnauthorizedDomain ? 'Firebase Domain Configuration' : 'Access Denied'}
+                </p>
+                <p className="text-xs mt-0.5 text-red-700 leading-relaxed">{error}</p>
+              </div>
             </div>
+
+            {isUnauthorizedDomain && (
+              <div className="pt-2 border-t border-red-200/60 space-y-2 text-xs">
+                <p className="text-neutral-700 font-medium">
+                  <strong>How to fix in Firebase:</strong>
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-neutral-600">
+                  <li>Open Firebase Console for this project</li>
+                  <li>Go to <strong>Authentication &gt; Settings &gt; Authorized domains</strong></li>
+                  <li>Add <strong>localhost</strong> and <strong>127.0.0.1</strong></li>
+                </ol>
+                <a
+                  href={`https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-neutral-900 underline hover:text-black mt-1"
+                >
+                  <span>Open Firebase Console Authorized Domains</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
           </div>
         )}
 
-        <div className="pt-1">
+        {/* Primary Google Sign-In */}
+        <div className="space-y-3">
           <button
             id="google-signin-btn"
             onClick={handleGoogleSignIn}
@@ -90,7 +163,59 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onNavigateAdmin }) => {
               {loading ? 'Verifying Authorization...' : 'Sign In with Authorized Google Account'}
             </span>
           </button>
+
+          {/* Quick fallback toggle: Authorized Email verification */}
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setShowDirectAuth(!showDirectAuth)}
+              className="text-xs text-neutral-500 hover:text-neutral-900 underline transition-colors cursor-pointer"
+            >
+              {showDirectAuth
+                ? 'Hide direct email sign-in'
+                : 'Having Google popup domain issues? Sign in with authorized email'}
+            </button>
+          </div>
+
+          {/* Direct Authorized Email Form (strictly verifies admin whitelist) */}
+          {showDirectAuth && (
+            <form
+              onSubmit={handleDirectAuthorizedSignIn}
+              className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-3 animate-fade-in"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Your Authorized Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+                  <input
+                    id="direct-auth-email-input"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={authorizedEmailInput}
+                    onChange={e => setAuthorizedEmailInput(e.target.value)}
+                    required
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+                  />
+                </div>
+                <p className="text-[11px] text-neutral-400 mt-1">
+                  Must be added by an admin. Unauthorized emails are rejected.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                id="direct-auth-submit-btn"
+                disabled={loading}
+                className="w-full py-2 px-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {loading ? 'Verifying...' : 'Sign In with Whitelisted Email'}
+              </button>
+            </form>
+          )}
         </div>
+
 
         <div className="border-t border-neutral-100 pt-4 space-y-2 text-xs text-neutral-500">
           <div className="flex items-center gap-2">

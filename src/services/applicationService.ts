@@ -11,7 +11,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { JobApplication } from '../types';
+import { ApplicationStatus, JobApplication } from '../types';
 import { handleFirestoreError, OperationType } from '../firebase/errorHandler';
 
 export const applicationService = {
@@ -82,7 +82,10 @@ export const applicationService = {
           tailoredResumeUrl: data.tailoredResumeUrl || '',
           status: data.status,
           createdAt: now,
-          appliedAt: data.status === 'applied' ? data.appliedAt || now : null,
+          appliedAt:
+            data.status === 'applied' || data.status === 'interviewing' || data.status === 'offer'
+              ? data.appliedAt || now
+              : null,
         },
         { merge: true }
       );
@@ -95,18 +98,45 @@ export const applicationService = {
 
   async updateApplicationStatus(
     applicationId: string,
-    status: 'draft' | 'applied'
+    status: ApplicationStatus
   ): Promise<void> {
     const path = `applications/${applicationId}`;
     const updates: Partial<JobApplication> = {
       status,
-      appliedAt: status === 'applied' ? new Date().toISOString() : null,
+      appliedAt:
+        status === 'applied' || status === 'interviewing' || status === 'offer'
+          ? new Date().toISOString()
+          : null,
     };
     try {
       await updateDoc(doc(db, 'applications', applicationId), updates);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
+  },
+
+  async bookmarkOrSaveJob(
+    userId: string,
+    job: { id: string; company: string; title: string },
+    status: ApplicationStatus = 'saved'
+  ): Promise<string> {
+    const existing = await this.findExistingApplication(userId, job.id);
+    if (existing) {
+      await this.updateApplicationStatus(existing.id, status);
+      return existing.id;
+    }
+    return this.saveApplication({
+      userId,
+      jobId: job.id,
+      company: job.company,
+      jobTitle: job.title,
+      status,
+      tailoredResumeMarkdown: '',
+      appliedAt:
+        status === 'applied' || status === 'interviewing' || status === 'offer'
+          ? new Date().toISOString()
+          : null,
+    });
   },
 
   async deleteApplication(applicationId: string): Promise<void> {
@@ -118,3 +148,4 @@ export const applicationService = {
     }
   },
 };
+

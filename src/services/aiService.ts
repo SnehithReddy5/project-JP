@@ -4,23 +4,81 @@ import html2canvas from 'html2canvas';
 export interface TailorResumeResult {
   markdown: string;
   source: 'ai' | 'smart-ats-optimizer';
+  modelUsed?: string;
   notice?: string;
 }
 
+export interface BuilderTailorResult {
+  markdown: string;
+  updatedExperience?: string;
+  updatedProjects?: string;
+  modelUsed?: string;
+}
+
+export interface AiModelConfig {
+  aiModel?: string;
+  customApiKey?: string;
+  customModelName?: string;
+  customModelProvider?: string;
+}
+
 export const aiService = {
-  // Call server-side API to tailor resume with Gemini without exposing keys
+  // Call server-side Resume Builder API — strictly preserving structure, editing only Projects & Experience
+  async builderTailor(params: {
+    companyName: string;
+    jobDescription: string;
+    resumeText: string;
+    modelConfig?: AiModelConfig;
+  }): Promise<BuilderTailorResult> {
+    const response = await fetch('/api/ai/builder-tailor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        companyName: params.companyName,
+        jobDescription: params.jobDescription,
+        resumeText: params.resumeText,
+        aiModel: params.modelConfig?.aiModel,
+        customApiKey: params.modelConfig?.customApiKey,
+        customModelName: params.modelConfig?.customModelName,
+        customModelProvider: params.modelConfig?.customModelProvider,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Resume alignment failed.' }));
+      throw new Error(err.error || 'Failed to align resume to job description.');
+    }
+
+    const data = await response.json();
+    return {
+      markdown: data.tailoredResumeMarkdown || '',
+      updatedExperience: data.updatedExperienceMarkdown,
+      updatedProjects: data.updatedProjectsMarkdown,
+      modelUsed: data.modelUsed,
+    };
+  },
+
+  // Call server-side API to tailor resume — passes user's model preference
   async tailorResume(params: {
     baseResume: string;
     jobTitle: string;
     company: string;
     jobDescription: string;
+    modelConfig?: AiModelConfig;
   }): Promise<TailorResumeResult> {
     const response = await fetch('/api/ai/tailor-resume', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(params),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        baseResume: params.baseResume,
+        jobTitle: params.jobTitle,
+        company: params.company,
+        jobDescription: params.jobDescription,
+        aiModel: params.modelConfig?.aiModel,
+        customApiKey: params.modelConfig?.customApiKey,
+        customModelName: params.modelConfig?.customModelName,
+        customModelProvider: params.modelConfig?.customModelProvider,
+      }),
     });
 
     if (!response.ok) {
@@ -32,6 +90,7 @@ export const aiService = {
     return {
       markdown: data.tailoredResumeMarkdown || '',
       source: data.source || 'ai',
+      modelUsed: data.modelUsed,
       notice: data.notice,
     };
   },
@@ -43,7 +102,6 @@ export const aiService = {
       throw new Error('Resume preview element not found');
     }
 
-    // Capture at high resolution (scale: 2)
     const canvas = await html2canvas(element, {
       scale: 2.5,
       useCORS: true,
@@ -65,12 +123,10 @@ export const aiService = {
     let heightLeft = imgHeight;
     let position = 0;
 
-    // First page
     const imgData = canvas.toDataURL('image/png');
     pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
     heightLeft -= pageHeight;
 
-    // Add extra pages if content overflows single A4 page
     while (heightLeft > 5) {
       position = heightLeft - imgHeight;
       pdf.addPage();
@@ -81,9 +137,22 @@ export const aiService = {
     pdf.save(`${filename.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
   },
 
-  // Native browser print to PDF (creates 100% vector-selectable text)
+  // Native browser print to PDF
   printResume(): void {
     window.print();
   },
-};
 
+  // Direct download as Markdown (.md) or Text (.txt) file
+  downloadResumeFile(content: string, filename: string, extension: 'md' | 'txt' = 'md'): void {
+    const mimeType = extension === 'md' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8';
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename.replace(/[^a-zA-Z0-9_-]/g, '_')}.${extension}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+};

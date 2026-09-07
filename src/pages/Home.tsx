@@ -30,8 +30,8 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
       if (!user) return;
       try {
         setLoading(true);
-        // Ensure seed jobs exist if database is fresh
-        await jobService.seedInitialJobsIfEmpty();
+        // Purge any legacy static mock jobs
+        jobService.purgeStaticJobs();
 
         const [userApps, allJobs] = await Promise.all([
           applicationService.getApplicationsByUser(user.uid),

@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { jobService } from '../services/jobService';
 import { applicationService } from '../services/applicationService';
 import { aiService } from '../services/aiService';
-import { Job } from '../types';
+import { ApplicationStatus, Job } from '../types';
 import { ResumeDocument, ResumeTheme } from '../components/ResumeDocument';
 import {
   Sparkles,
@@ -42,7 +42,8 @@ export const ApplyFlow: React.FC<ApplyFlowProps> = ({
   const [savingManual, setSavingManual] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [appStatus, setAppStatus] = useState<'draft' | 'applied'>('draft');
+  const [appStatus, setAppStatus] = useState<ApplicationStatus>('draft');
+
   const [theme, setTheme] = useState<ResumeTheme>('executive');
   const [isEditing, setIsEditing] = useState(false);
   const [editedMarkdown, setEditedMarkdown] = useState('');
@@ -126,12 +127,18 @@ export const ApplyFlow: React.FC<ApplyFlowProps> = ({
       });
       setApplicationId(appId);
 
-      // Call secure server-side AI endpoint
+      // Call secure server-side AI endpoint with user's model config
       const result = await aiService.tailorResume({
         baseResume: profile.baseResumeText,
         jobTitle: targetJob.title,
         company: targetJob.company,
         jobDescription: targetJob.description,
+        modelConfig: {
+          aiModel: profile.aiModel,
+          customApiKey: profile.customApiKey,
+          customModelName: profile.customModelName,
+          customModelProvider: profile.customModelProvider,
+        },
       });
 
       setTailoredMarkdown(result.markdown);
