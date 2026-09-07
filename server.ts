@@ -224,10 +224,13 @@ Please produce the tailored ATS resume according to the strict non-hallucination
 
     // --- Option 2: User-chosen Gemini model OR default Gemini fallback chain ---
     if (!markdownResume) {
-      const userGeminiModel = aiModel && aiModel.toLowerCase().includes('gemini') ? aiModel : null;
+      const rawGeminiModel = aiModel && aiModel.toLowerCase().includes('gemini') ? aiModel : null;
+      const userGeminiModel = (rawGeminiModel === 'gemini-1.5-flash' || rawGeminiModel === 'gemini-flash-latest')
+        ? 'gemini-2.5-flash'
+        : rawGeminiModel;
       const geminiCandidates = userGeminiModel
-        ? [userGeminiModel, 'gemini-2.0-flash', 'gemini-flash-latest']
-        : ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+        ? [userGeminiModel, 'gemini-2.5-flash', 'gemini-2.0-flash']
+        : ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
       // If user has a custom Google API key, use it
       const googleKey = (customModelProvider === 'google' && customApiKey?.trim()) ? customApiKey.trim() : undefined;
@@ -398,10 +401,13 @@ Please edit the Experience and Projects sections now to align with the JD, prese
 
     // 2. Gemini fallback chain
     if (!rawOutput) {
-      const userGeminiModel = aiModel && aiModel.toLowerCase().includes('gemini') ? aiModel : null;
+      const rawGeminiModel = aiModel && aiModel.toLowerCase().includes('gemini') ? aiModel : null;
+      const userGeminiModel = (rawGeminiModel === 'gemini-1.5-flash' || rawGeminiModel === 'gemini-flash-latest')
+        ? 'gemini-2.5-flash'
+        : rawGeminiModel;
       const geminiCandidates = userGeminiModel
-        ? [userGeminiModel, 'gemini-2.0-flash', 'gemini-flash-latest']
-        : ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+        ? [userGeminiModel, 'gemini-2.5-flash', 'gemini-2.0-flash']
+        : ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
       const googleKey =
         customModelProvider === 'google' && customApiKey?.trim() ? customApiKey.trim() : undefined;
