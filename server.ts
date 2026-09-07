@@ -1323,12 +1323,22 @@ async function start() {
   const distPath = path.join(process.cwd(), 'dist');
   const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
 
+  app.get('/favicon.ico', (req, res) => {
+    const svgFavicon = path.join(process.cwd(), 'public', 'favicon.svg');
+    if (fs.existsSync(svgFavicon)) {
+      res.type('image/svg+xml');
+      return res.sendFile(svgFavicon);
+    }
+    return res.status(204).end();
+  });
+
   if (process.env.NODE_ENV === 'production' || hasDist) {
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       if (/\.(js|css|json|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|wasm|map)$/i.test(req.path)) {
         return res.status(404).send('Not found');
       }
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {
