@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { createRequire } from 'module';
 import { GoogleGenAI } from '@google/genai';
@@ -21,17 +22,22 @@ try {
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
+
+// Default Gemini API key provided by user
+const DEFAULT_GEMINI_KEY = 'AQ.Ab8RN6J9KDLeZCp1JP94mRhpx5FZQq7S438o1rwmOCvl735h7Q';
 
 // Lazy initializer for Gemini API client
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn('GEMINI_API_KEY environment variable is not set');
-    }
-    aiClient = new GoogleGenAI({ apiKey: apiKey || '' });
+    const apiKey = process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
+    aiClient = new GoogleGenAI({ apiKey });
   }
   return aiClient;
 }
@@ -452,11 +458,11 @@ Please edit the Experience and Projects sections now to align with the JD, prese
       }
     }
 
-    // If AI failed completely, perform in-place ATS keyword enrichment fallback
+    // If AI failed completely, report error
     if (!fullResume || fullResume.length < 50) {
-      console.warn('Using in-place fallback optimizer for builder-tailor');
-      fullResume = generateInPlaceResumeFallback(resumeText, company, jobDescription);
-      modelUsed = 'in-place-ats-optimizer';
+      const errMsg = lastError?.message || 'AI failed to align resume. Please verify the API key and prompt parameters.';
+      console.warn('Builder-tailor error:', errMsg);
+      return res.status(500).json({ error: errMsg });
     }
 
     return res.json({
@@ -764,7 +770,7 @@ app.post('/api/ai/extract-resume', async (req, res) => {
     const effectiveText = textContent || extractedPdfText || '';
 
     // 2. Attempt Gemini AI structured parsing if API key is available
-    if (process.env.GEMINI_API_KEY) {
+    if (process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY) {
       const ai = getGeminiClient();
       const extractionPrompt = `You are a high-precision ATS resume parser. Analyze this candidate resume document and extract all essential profile information.
 Output MUST be a strictly valid JSON object with these EXACT keys:
@@ -1246,7 +1252,7 @@ app.post('/api/jobs/search', async (req, res) => {
     const liveInternetJobs = await fetchRealTimeInternetJobs(query, location, country || 'USA', source);
 
     // If Gemini is available, supplement with LinkedIn/Indeed style postings for USA
-    if (process.env.GEMINI_API_KEY) {
+    if (process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY) {
       try {
         const ai = getGeminiClient();
         const targetCountryLabel = country === 'USA' || !country ? 'USA / United States' : country;
@@ -1317,18 +1323,20 @@ Return ONLY raw JSON array, no markdown.`;
 
 
 async function start() {
-  if (process.env.NODE_ENV !== 'production') {
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+
+  if (process.env.NODE_ENV === 'production' || hasDist) {
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
   }
 
   app.listen(PORT, '0.0.0.0', () => {

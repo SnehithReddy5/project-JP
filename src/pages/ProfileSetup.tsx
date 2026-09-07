@@ -149,35 +149,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
   const [country, setCountry] = useState(profile?.country || 'USA');
   const [location, setLocation] = useState(profile?.location || 'San Francisco');
   const [jobRole, setJobRole] = useState(profile?.jobRole || 'Software Engineer');
-  const [baseResumeText, setBaseResumeText] = useState(
-    profile?.baseResumeText ||
-      `JOHN DOE
-Email: ${user?.email || 'john@example.com'} | Phone: +1 234 567 890 | LinkedIn: linkedin.com/in/johndoe
-
-PROFESSIONAL SUMMARY
-Experienced Software Engineer with 4+ years specializing in modern front-end architectures, React, TypeScript, responsive UI development, and scalable cloud application integrations. Proven track record in improving page load speeds, refactoring legacy codebases, and collaborating in agile teams.
-
-CORE SKILLS
-- Languages & Frameworks: React, TypeScript, JavaScript (ES6+), HTML5, CSS3, Tailwind CSS, Next.js, Node.js
-- State & APIs: Redux Toolkit, React Query, RESTful APIs, GraphQL
-- Tools & Practices: Git, Vite, Webpack, Jest, Cypress, CI/CD, Agile/Scrum
-
-PROFESSIONAL EXPERIENCE
-Frontend Software Engineer | TechCorp Global (2022 – Present)
-- Developed and maintained responsive SaaS client dashboards using React, TypeScript, and Tailwind CSS, increasing user session durations by 22%.
-- Engineered reusable UI component systems adopted across 4 distributed engineering teams.
-- Optimized bundle size and eliminated blocking render passes, cutting time-to-interactive by 35%.
-- Integrated RESTful backend microservices and handled offline data caching strategies.
-
-Software Developer | Innovate Soft (2020 – 2022)
-- Collaborated with UX designers to deliver pixel-perfect client portals serving 50,000+ monthly active users.
-- Built interactive data visualization panels using React and charting libraries.
-- Wrote end-to-end integration tests using Cypress, reducing production bugs by 18%.
-
-EDUCATION
-Bachelor of Technology in Computer Science & Engineering
-State University, Graduated 2020`
-  );
+  const [baseResumeText, setBaseResumeText] = useState(profile?.baseResumeText || '');
   const [resumeFileName, setResumeFileName] = useState(profile?.baseResumeFileName || 'base_resume.txt');
 
   // AI Model state
@@ -531,7 +503,7 @@ State University, Graduated 2020`
                 rows={9}
                 value={baseResumeText}
                 onChange={e => setBaseResumeText(e.target.value)}
-                placeholder="Paste or review your resume text here..."
+                placeholder="Paste your plain text or Markdown resume here, or upload your resume file above (PDF/DOCX)..."
                 className="w-full p-3 font-mono text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent leading-relaxed"
               />
               <p className="text-xs text-neutral-500 mt-1">
