@@ -39,9 +39,11 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
-// Groq configuration
+// AI model configurations
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
-const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
+const DEFAULT_AI_MODEL = 'openai/gpt-oss-120b';
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -218,53 +220,34 @@ Please produce the tailored ATS resume according to the strict non-hallucination
     let modelUsed = '';
     let lastError: any = null;
 
-    // --- Option 0: Groq requested directly (via profile selection or model name) ---
-    if (!markdownResume && (customModelProvider === 'groq' || (aiModel && (aiModel.startsWith('llama') || aiModel.includes('gpt-oss') || aiModel.startsWith('openai/'))))) {
-      try {
-        const groqModel = customModelName || aiModel || DEFAULT_GROQ_MODEL;
-        markdownResume = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
-        modelUsed = groqModel;
-        markdownResume = cleanMarkdownFences(markdownResume);
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`Groq direct (${aiModel}) error:`, err?.message);
-      }
-    }
-
-    // --- Option 1: User's custom API key ---
+    // --- Option 1: User's custom API key (Groq, OpenRouter, or OpenAI) ---
     if (!markdownResume && customApiKey && customApiKey.trim()) {
       const key = customApiKey.trim();
-      const model = customModelName || aiModel || 'openai/gpt-oss-120b';
-      let provider = customModelProvider;
-      if (key.startsWith('gsk_')) provider = 'groq';
-      else if (key.startsWith('sk-or-')) provider = 'openrouter';
-      else if (key.startsWith('sk-ant-')) provider = 'anthropic';
-      else if (!provider) provider = 'openai';
-
+      const model = customModelName || aiModel || DEFAULT_AI_MODEL;
       try {
-        if (provider === 'groq') {
+        if (key.startsWith('gsk_') || customModelProvider === 'groq') {
           markdownResume = await callGroq(key, model, systemPrompt, userPrompt);
           modelUsed = model;
-        } else if (provider === 'anthropic') {
+        } else if (key.startsWith('sk-ant_') || key.startsWith('sk-ant-') || customModelProvider === 'anthropic') {
           markdownResume = await callAnthropicClaude(key, model, systemPrompt, userPrompt);
           modelUsed = model;
-        } else if (provider === 'mistral') {
+        } else if (customModelProvider === 'mistral') {
           markdownResume = await callOpenAiCompatible(
             key, model,
             'https://api.mistral.ai/v1',
             systemPrompt, userPrompt
           );
           modelUsed = model;
-        } else if (provider === 'openrouter' || key.startsWith('sk-or-')) {
+        } else if (key.startsWith('sk-or-') || customModelProvider === 'openrouter') {
           markdownResume = await callOpenAiCompatible(
             key, model,
-            'https://openrouter.ai/api/v1',
+            OPENROUTER_BASE_URL,
             systemPrompt, userPrompt
           );
           modelUsed = model;
         } else {
-          // OpenAI or any openai-compatible
-          const baseUrl = provider === 'google' ? 'https://generativelanguage.googleapis.com/v1beta/openai' : 'https://api.openai.com/v1';
+          // Default OpenAI compatible endpoint (OpenRouter for gpt-oss or OpenAI)
+          const baseUrl = model.includes('/') ? OPENROUTER_BASE_URL : 'https://api.openai.com/v1';
           markdownResume = await callOpenAiCompatible(
             key, model, baseUrl, systemPrompt, userPrompt
           );
@@ -273,24 +256,27 @@ Please produce the tailored ATS resume according to the strict non-hallucination
         markdownResume = cleanMarkdownFences(markdownResume);
       } catch (err: any) {
         lastError = err;
-        console.warn(`Custom model (${model}) error:`, err?.message);
-        // Fall through to Gemini
+        console.warn(`Custom API model (${model}) notice:`, err?.message);
       }
     }
 
-    // --- Option 2: User-chosen Gemini model OR default Gemini fallback chain ---
-    if (!markdownResume) {
-      const rawGeminiModel = aiModel && aiModel.toLowerCase().includes('gemini') ? aiModel : null;
-      const userGeminiModel = (rawGeminiModel === 'gemini-1.5-flash' || rawGeminiModel === 'gemini-flash-latest')
-        ? 'gemini-2.5-flash'
-        : rawGeminiModel;
-      const geminiCandidates = userGeminiModel
-        ? [userGeminiModel, 'gemini-2.5-flash', 'gemini-2.0-flash']
-        : ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    // --- Option 2: Server-configured Groq key ---
+    if (!markdownResume && process.env.GROQ_API_KEY) {
+      try {
+        const groqModel = customModelName || aiModel || DEFAULT_GROQ_MODEL;
+        markdownResume = await callGroq(undefined, groqModel, systemPrompt, userPrompt);
+        modelUsed = groqModel;
+        markdownResume = cleanMarkdownFences(markdownResume);
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Server Groq (${aiModel}) notice:`, err?.message);
+      }
+    }
 
-      // If user has a custom Google API key, use it
-      const googleKey = (customModelProvider === 'google' && customApiKey?.trim()) ? customApiKey.trim() : undefined;
-      const ai = googleKey ? new GoogleGenAI({ apiKey: googleKey }) : getGeminiClient();
+    // --- Option 3: Gemini fallback chain (if configured) ---
+    if (!markdownResume && process.env.GEMINI_API_KEY) {
+      const geminiCandidates = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+      const ai = getGeminiClient();
 
       for (const modelName of geminiCandidates) {
         for (let attempt = 1; attempt <= 2; attempt++) {
@@ -308,11 +294,6 @@ Please produce the tailored ATS resume according to the strict non-hallucination
             }
           } catch (err: any) {
             lastError = err;
-            const errMsg = err?.message || String(err);
-            const isRateOrCapacity = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') ||
-              errMsg.includes('high demand') || errMsg.includes('429') || errMsg.includes('ResourceExhausted');
-            if (isRateOrCapacity && attempt < 2) { await new Promise(r => setTimeout(r, 1000)); continue; }
-            if (isRateOrCapacity) break;
             break;
           }
         }
@@ -320,39 +301,25 @@ Please produce the tailored ATS resume according to the strict non-hallucination
       }
     }
 
-    // --- Option 2.5: Groq fallback chain (when Gemini is unavailable or failed) ---
-    if (!markdownResume && (process.env.GROQ_API_KEY || (customModelProvider === 'groq' && customApiKey))) {
-      try {
-        console.log('Gemini unavailable/failed, executing Groq fallback for tailor-resume...');
-        const groqModel = DEFAULT_GROQ_MODEL;
-        markdownResume = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
-        if (markdownResume) {
-          modelUsed = `${groqModel} (Groq Fallback)`;
-          markdownResume = cleanMarkdownFences(markdownResume);
-        }
-      } catch (groqErr: any) {
-        lastError = groqErr;
-        console.warn('Groq fallback error:', groqErr?.message);
-      }
-    }
-
     if (markdownResume) {
       return res.json({
         success: true,
         source: 'ai',
-        modelUsed,
+        modelUsed: modelUsed || DEFAULT_AI_MODEL,
         tailoredResumeMarkdown: markdownResume,
       });
     }
 
-    // --- Option 3: Smart local ATS fallback ---
-    console.warn('All AI models unavailable, executing smart local ATS tailoring fallback:', lastError?.message);
+    // --- Option 4: Smart zero-hallucination local ATS fallback ---
+    console.warn('AI unavailable, executing smart local ATS tailoring fallback:', lastError?.message);
     const fallbackResume = generateSmartAtsFallback(baseResume, jobTitle, company, jobDescription);
     return res.json({
       success: true,
       source: 'smart-ats-optimizer',
       modelUsed: 'local-ats-optimizer',
-      notice: 'The AI service is temporarily experiencing high traffic. We automatically tailored your resume using our intelligent ATS Keyword Optimizer. You can review, edit, or regenerate anytime.',
+      notice: lastError?.message?.includes('401')
+        ? 'Notice: The API key entered in your profile is invalid. Your resume was aligned using our ATS Keyword Optimizer. Please check your API key in Profile settings.'
+        : 'Tailored using our intelligent ATS Keyword Optimizer. You can review and edit anytime.',
       tailoredResumeMarkdown: fallbackResume,
     });
   } catch (error: any) {
@@ -434,36 +401,18 @@ Please edit the Experience and Projects sections now to align with the JD, prese
     let modelUsed = '';
     let lastError: any = null;
 
-    // 0. Groq direct check (via model selection or groq provider)
-    if (!rawOutput && (customModelProvider === 'groq' || (aiModel && (aiModel.startsWith('llama') || aiModel.includes('gpt-oss') || aiModel.startsWith('openai/'))))) {
-      try {
-        const groqModel = customModelName || aiModel || DEFAULT_GROQ_MODEL;
-        rawOutput = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
-        modelUsed = groqModel;
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`Builder Groq direct error (${aiModel}):`, err?.message);
-      }
-    }
-
-    // 1. Custom API key check
+    // 1. Custom API key check (Groq, OpenRouter, or OpenAI)
     if (!rawOutput && customApiKey && customApiKey.trim()) {
       const key = customApiKey.trim();
-      const model = customModelName || aiModel || 'openai/gpt-oss-120b';
-      let provider = customModelProvider;
-      if (key.startsWith('gsk_')) provider = 'groq';
-      else if (key.startsWith('sk-or-')) provider = 'openrouter';
-      else if (key.startsWith('sk-ant-')) provider = 'anthropic';
-      else if (!provider) provider = 'openai';
-
+      const model = customModelName || aiModel || DEFAULT_AI_MODEL;
       try {
-        if (provider === 'groq') {
+        if (key.startsWith('gsk_') || customModelProvider === 'groq') {
           rawOutput = await callGroq(key, model, systemPrompt, userPrompt);
           modelUsed = model;
-        } else if (provider === 'anthropic') {
+        } else if (key.startsWith('sk-ant_') || key.startsWith('sk-ant-') || customModelProvider === 'anthropic') {
           rawOutput = await callAnthropicClaude(key, model, systemPrompt, userPrompt);
           modelUsed = model;
-        } else if (provider === 'mistral') {
+        } else if (customModelProvider === 'mistral') {
           rawOutput = await callOpenAiCompatible(
             key,
             model,
@@ -472,20 +421,17 @@ Please edit the Experience and Projects sections now to align with the JD, prese
             userPrompt
           );
           modelUsed = model;
-        } else if (provider === 'openrouter' || key.startsWith('sk-or-')) {
+        } else if (key.startsWith('sk-or-') || customModelProvider === 'openrouter') {
           rawOutput = await callOpenAiCompatible(
             key,
             model,
-            'https://openrouter.ai/api/v1',
+            OPENROUTER_BASE_URL,
             systemPrompt,
             userPrompt
           );
           modelUsed = model;
         } else {
-          const baseUrl =
-            provider === 'google'
-              ? 'https://generativelanguage.googleapis.com/v1beta/openai'
-              : 'https://api.openai.com/v1';
+          const baseUrl = model.includes('/') ? OPENROUTER_BASE_URL : 'https://api.openai.com/v1';
           rawOutput = await callOpenAiCompatible(
             key,
             model,
@@ -497,23 +443,26 @@ Please edit the Experience and Projects sections now to align with the JD, prese
         }
       } catch (err: any) {
         lastError = err;
-        console.warn(`Builder custom model (${model}) error:`, err?.message);
+        console.warn(`Builder custom model (${model}) notice:`, err?.message);
       }
     }
 
-    // 2. Gemini fallback chain
-    if (!rawOutput) {
-      const rawGeminiModel = aiModel && aiModel.toLowerCase().includes('gemini') ? aiModel : null;
-      const userGeminiModel = (rawGeminiModel === 'gemini-1.5-flash' || rawGeminiModel === 'gemini-flash-latest')
-        ? 'gemini-2.5-flash'
-        : rawGeminiModel;
-      const geminiCandidates = userGeminiModel
-        ? [userGeminiModel, 'gemini-2.5-flash', 'gemini-2.0-flash']
-        : ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    // 2. Server-configured Groq key (if available in environment)
+    if (!rawOutput && process.env.GROQ_API_KEY) {
+      try {
+        const groqModel = customModelName || aiModel || DEFAULT_GROQ_MODEL;
+        rawOutput = await callGroq(undefined, groqModel, systemPrompt, userPrompt);
+        modelUsed = groqModel;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Builder Groq server error (${aiModel}):`, err?.message);
+      }
+    }
 
-      const googleKey =
-        customModelProvider === 'google' && customApiKey?.trim() ? customApiKey.trim() : undefined;
-      const ai = googleKey ? new GoogleGenAI({ apiKey: googleKey }) : getGeminiClient();
+    // 3. Gemini fallback chain (if configured)
+    if (!rawOutput && process.env.GEMINI_API_KEY) {
+      const geminiCandidates = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+      const ai = getGeminiClient();
 
       for (const modelName of geminiCandidates) {
         try {
@@ -530,23 +479,8 @@ Please edit the Experience and Projects sections now to align with the JD, prese
           }
         } catch (err: any) {
           lastError = err;
-          console.warn(`Gemini (${modelName}) in builder-tailor:`, err?.message);
+          break;
         }
-      }
-    }
-
-    // 2.5. Groq fallback chain for builder-tailor
-    if (!rawOutput && (process.env.GROQ_API_KEY || (customModelProvider === 'groq' && customApiKey))) {
-      try {
-        console.log('Gemini unavailable/failed, executing Groq fallback for builder-tailor...');
-        const groqModel = DEFAULT_GROQ_MODEL;
-        rawOutput = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
-        if (rawOutput) {
-          modelUsed = `${groqModel} (Groq Fallback)`;
-        }
-      } catch (groqErr: any) {
-        lastError = groqErr;
-        console.warn('Groq builder fallback error:', groqErr?.message);
       }
     }
 
@@ -578,11 +512,21 @@ Please edit the Experience and Projects sections now to align with the JD, prese
       }
     }
 
-    // If AI failed completely, report error
+    // If AI failed or key was invalid, smoothly fall back to smart in-place ATS alignment
     if (!fullResume || fullResume.length < 50) {
-      const errMsg = lastError?.message || 'AI failed to align resume. Please verify the API key and prompt parameters.';
-      console.warn('Builder-tailor error:', errMsg);
-      return res.status(500).json({ error: errMsg });
+      console.warn('AI unavailable or API key invalid, applying in-place ATS alignment fallback:', lastError?.message);
+      const fallbackTailored = generateInPlaceResumeFallback(resumeText, companyName, jobDescription);
+      return res.json({
+        success: true,
+        source: 'smart-ats-optimizer',
+        tailoredResumeMarkdown: fallbackTailored,
+        updatedExperienceMarkdown: 'Aligned experience bullet points with targeted job description keywords.',
+        updatedProjectsMarkdown: 'Aligned projects to match relevant target competencies.',
+        modelUsed: 'local-ats-optimizer',
+        notice: lastError?.message?.includes('401')
+          ? 'Notice: The API key entered in your profile is invalid. Your resume was aligned using our ATS Keyword Optimizer. Please check your API key in Profile settings.'
+          : 'Tailored using our intelligent ATS Keyword Optimizer. You can review and edit anytime.',
+      });
     }
 
     return res.json({
@@ -590,7 +534,7 @@ Please edit the Experience and Projects sections now to align with the JD, prese
       tailoredResumeMarkdown: fullResume,
       updatedExperienceMarkdown: updatedExperience,
       updatedProjectsMarkdown: updatedProjects,
-      modelUsed: modelUsed || 'gemini-2.0-flash',
+      modelUsed: modelUsed || DEFAULT_AI_MODEL,
     });
   } catch (error: any) {
     console.error('Error in /api/ai/builder-tailor:', error);
@@ -994,7 +938,7 @@ Return ONLY raw JSON without markdown formatting.`;
 
         const groqOutput = await callGroq(
           process.env.GROQ_API_KEY,
-          'llama-3.3-70b-versatile',
+          DEFAULT_GROQ_MODEL,
           'You are a high-precision ATS resume parser. Always return valid JSON only.',
           `${groqExtractionPrompt}\n\n=== CANDIDATE RESUME TEXT CONTENT ===\n${effectiveText}`
         );
@@ -1531,7 +1475,7 @@ Return raw JSON array only.`;
 
         const groqText = await callGroq(
           process.env.GROQ_API_KEY,
-          'llama-3.3-70b-versatile',
+          DEFAULT_GROQ_MODEL,
           'You are a job aggregator assistant. Always output strictly valid JSON array without markdown backticks.',
           jobPrompt
         );
