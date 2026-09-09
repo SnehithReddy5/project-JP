@@ -129,8 +129,15 @@ export const ResumeBuilder: React.FC = () => {
           }
 
           const parsed = await resp.json();
-          if (parsed.baseResumeText) {
-            setResumeText(parsed.baseResumeText);
+          const extractedText =
+            parsed?.data?.baseResumeText ||
+            parsed?.baseResumeText ||
+            parsed?.data?.summary ||
+            parsed?.text ||
+            (parsed?.data && typeof parsed.data === 'string' ? parsed.data : '');
+
+          if (extractedText && extractedText.trim()) {
+            setResumeText(extractedText.trim());
           } else {
             throw new Error('No readable text extracted from document.');
           }

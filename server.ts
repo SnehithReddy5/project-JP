@@ -846,12 +846,17 @@ app.post('/api/ai/extract-resume', async (req, res) => {
       if (isPdf && PDFParseClass) {
         try {
           const pdfBuffer = Buffer.from(cleanBase64, 'base64');
-          const parser = new PDFParseClass({ data: pdfBuffer });
-          const textObj = await parser.getText();
-          if (typeof textObj === 'string') {
-            extractedPdfText = textObj;
-          } else if (textObj && typeof textObj.text === 'string') {
-            extractedPdfText = textObj.text;
+          if (typeof PDFParseClass === 'function') {
+            try {
+              const parser = new PDFParseClass({ data: pdfBuffer });
+              if (typeof parser.getText === 'function') {
+                const textObj = await parser.getText();
+                extractedPdfText = typeof textObj === 'string' ? textObj : (textObj?.text || '');
+              }
+            } catch (classErr) {
+              const res = await (PDFParseClass as any)(pdfBuffer);
+              extractedPdfText = res?.text || '';
+            }
           }
         } catch (pdfErr) {
           console.warn('PDFParse extraction notice:', pdfErr);
@@ -920,6 +925,7 @@ Return ONLY raw JSON. Do not include markdown code block backticks (\`\`\`json o
               return res.json({
                 success: true,
                 source: 'gemini',
+                baseResumeText: extractedData.baseResumeText || effectiveText,
                 data: {
                   name: extractedData.name || '',
                   email: extractedData.email || '',
@@ -978,6 +984,7 @@ Return ONLY raw JSON without markdown formatting.`;
             return res.json({
               success: true,
               source: 'groq',
+              baseResumeText: extractedData.baseResumeText || effectiveText,
               data: {
                 name: extractedData.name || '',
                 email: extractedData.email || '',
@@ -1003,6 +1010,7 @@ Return ONLY raw JSON without markdown formatting.`;
       success: true,
       source: extractedPdfText ? 'pdf-parser' : 'text-parser',
       notice: 'Resume successfully extracted and parsed.',
+      baseResumeText: parsed.baseResumeText,
       data: parsed,
     });
   } catch (error: any) {
