@@ -24,7 +24,7 @@ const POPULAR_LOCATIONS: Record<string, string[]> = {
 interface AiModelOption {
   id: string;
   label: string;
-  provider: 'google' | 'openai' | 'anthropic' | 'mistral' | 'other';
+  provider: 'groq' | 'google' | 'openai' | 'anthropic' | 'mistral' | 'other';
   badge: 'Free' | 'Premium' | 'Fast' | 'Powerful';
   description: string;
   requiresKey: boolean;
@@ -32,6 +32,25 @@ interface AiModelOption {
 }
 
 const AI_MODELS: AiModelOption[] = [
+  // Groq (LPU Ultra-fast - uses server key or custom key)
+  {
+    id: 'llama-3.3-70b-versatile',
+    label: 'Llama 3.3 70B (Groq)',
+    provider: 'groq',
+    badge: 'Fast',
+    description: 'Blazing fast inference via Groq LPU. Top quality ATS resume tailoring.',
+    requiresKey: false,
+    color: 'bg-orange-50 border-orange-200 text-orange-800',
+  },
+  {
+    id: 'llama-3.1-8b-instant',
+    label: 'Llama 3.1 8B (Groq)',
+    provider: 'groq',
+    badge: 'Fast',
+    description: 'Ultra-low latency instant generation via Groq.',
+    requiresKey: false,
+    color: 'bg-orange-50 border-orange-200 text-orange-800',
+  },
   // Google (uses server key — free for user)
   {
     id: 'gemini-2.0-flash',
@@ -121,6 +140,7 @@ const AI_MODELS: AiModelOption[] = [
 ];
 
 const PROVIDER_LABELS: Record<string, string> = {
+  groq: '⚡ Groq (Llama 3.3 / LPU)',
   google: '🔷 Google (Gemini)',
   openai: '🟢 OpenAI (GPT)',
   anthropic: '🟠 Anthropic (Claude)',
@@ -548,8 +568,8 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                 <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-800 flex items-start gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold">Free models</span> use the server's built-in Gemini key — no setup needed.{' '}
-                    <span className="font-semibold">Premium models</span> (GPT-4o, Claude, Gemini Pro) require your own API key for unlimited, highest-quality generation.
+                    <span className="font-semibold">Fast & Free models</span> (Groq Llama 3.3, Gemini) use the server's configured keys — no personal key required.{' '}
+                    <span className="font-semibold">Premium models</span> (GPT-4o, Claude, Gemini Pro) require your own API key. You can also provide your own personal Groq key below.
                   </div>
                 </div>
 
@@ -609,13 +629,13 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                   ))}
                 </div>
 
-                {/* API Key Input — shown when model requires a key */}
-                {(selectedModel.requiresKey || isCustom) && (
+                {/* API Key Input — shown when model requires a key or is Groq/Custom */}
+                {(selectedModel.requiresKey || isCustom || selectedModel.provider === 'groq') && (
                   <div className="space-y-3 p-4 rounded-xl bg-neutral-50 border border-neutral-200">
                     <div className="flex items-center gap-2">
                       <KeyRound className="w-4 h-4 text-neutral-600" />
                       <span className="text-xs font-semibold text-neutral-800">
-                        {isCustom ? 'Custom Model Settings' : `${selectedModel.label} API Key`}
+                        {isCustom ? 'Custom Model Settings' : `${selectedModel.label} API Key ${selectedModel.provider === 'groq' ? '(Optional)' : ''}`}
                       </span>
                     </div>
 
@@ -629,7 +649,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                           type="text"
                           value={customModelName}
                           onChange={e => setCustomModelName(e.target.value)}
-                          placeholder="e.g. llama-3-70b, mixtral-8x7b, gpt-4-turbo"
+                          placeholder="e.g. llama-3.3-70b-versatile, mixtral-8x7b-32768, gpt-4-turbo"
                           className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900"
                         />
                       </div>
@@ -637,9 +657,11 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
 
                     <div>
                       <label className="block text-xs font-medium text-neutral-700 mb-1">
-                        API Key
+                        API Key {selectedModel.provider === 'groq' ? '(leave empty to use server GROQ_API_KEY)' : ''}
                         <span className="text-neutral-400 font-normal ml-1">
-                          ({selectedModel.provider === 'openai'
+                          ({selectedModel.provider === 'groq'
+                            ? 'from console.groq.com'
+                            : selectedModel.provider === 'openai'
                             ? 'from platform.openai.com'
                             : selectedModel.provider === 'anthropic'
                             ? 'from console.anthropic.com'
@@ -659,7 +681,9 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                           value={customApiKey}
                           onChange={e => setCustomApiKey(e.target.value)}
                           placeholder={
-                            selectedModel.provider === 'openai'
+                            selectedModel.provider === 'groq'
+                              ? 'gsk_... (optional, server key used if blank)'
+                              : selectedModel.provider === 'openai'
                               ? 'sk-...'
                               : selectedModel.provider === 'anthropic'
                               ? 'sk-ant-...'

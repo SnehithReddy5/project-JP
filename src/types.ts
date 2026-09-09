@@ -40,7 +40,7 @@ export interface UserProfile {
   aiModel?: string;           // e.g. 'gemini-2.0-flash', 'gpt-4o', 'claude-3-5-sonnet'
   customApiKey?: string;      // User's own API key for custom model
   customModelName?: string;   // Custom model identifier if not in list
-  customModelProvider?: 'google' | 'openai' | 'anthropic' | 'mistral' | 'other';
+  customModelProvider?: 'groq' | 'google' | 'openai' | 'anthropic' | 'mistral' | 'other';
   createdAt: string;
   updatedAt: string;
 }

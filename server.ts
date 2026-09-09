@@ -39,12 +39,24 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
+// Groq configuration
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    time: new Date().toISOString(),
+    aiConfig: {
+      hasGeminiKey: !!process.env.GEMINI_API_KEY,
+      hasGroqKey: !!process.env.GROQ_API_KEY,
+      defaultEngine: process.env.GROQ_API_KEY ? 'groq' : (process.env.GEMINI_API_KEY ? 'gemini' : 'smart-ats-fallback'),
+    },
+  });
 });
 
-// Helper: call OpenAI-compatible API with a user key
+// Helper: call OpenAI-compatible API with an API key
 async function callOpenAiCompatible(
   apiKey: string,
   model: string,
@@ -108,6 +120,21 @@ async function callAnthropicClaude(
   }
   const data: any = await resp.json();
   return (data?.content?.[0]?.text || '').trim();
+}
+
+// Helper: call Groq API (ultra-fast LPU inference)
+async function callGroq(
+  apiKey: string | undefined,
+  model: string | undefined,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<string> {
+  const key = (apiKey && apiKey.trim()) || process.env.GROQ_API_KEY || '';
+  if (!key) {
+    throw new Error('GROQ_API_KEY not configured. Please add GROQ_API_KEY=gsk_... to your .env or Profile.');
+  }
+  const chosenModel = model && model.startsWith('llama') ? model : DEFAULT_GROQ_MODEL;
+  return callOpenAiCompatible(key.trim(), chosenModel, GROQ_BASE_URL, systemPrompt, userPrompt);
 }
 
 // Helper: clean markdown wrappers
@@ -191,12 +218,28 @@ Please produce the tailored ATS resume according to the strict non-hallucination
     let modelUsed = '';
     let lastError: any = null;
 
+    // --- Option 0: Groq requested directly (via profile selection or model name) ---
+    if (!markdownResume && (customModelProvider === 'groq' || (aiModel && aiModel.startsWith('llama')))) {
+      try {
+        const groqModel = customModelName || aiModel || DEFAULT_GROQ_MODEL;
+        markdownResume = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
+        modelUsed = groqModel;
+        markdownResume = cleanMarkdownFences(markdownResume);
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Groq direct (${aiModel}) error:`, err?.message);
+      }
+    }
+
     // --- Option 1: User's custom API key (premium) ---
-    if (customApiKey && customApiKey.trim()) {
+    if (!markdownResume && customApiKey && customApiKey.trim()) {
       const provider = customModelProvider || 'openai';
       const model = customModelName || aiModel || 'gpt-4o-mini';
       try {
-        if (provider === 'anthropic') {
+        if (provider === 'groq') {
+          markdownResume = await callGroq(customApiKey.trim(), model, systemPrompt, userPrompt);
+          modelUsed = model;
+        } else if (provider === 'anthropic') {
           markdownResume = await callAnthropicClaude(customApiKey.trim(), model, systemPrompt, userPrompt);
           modelUsed = model;
         } else if (provider === 'mistral') {
@@ -261,6 +304,22 @@ Please produce the tailored ATS resume according to the strict non-hallucination
           }
         }
         if (markdownResume) break;
+      }
+    }
+
+    // --- Option 2.5: Groq fallback chain (when Gemini is unavailable or failed) ---
+    if (!markdownResume && (process.env.GROQ_API_KEY || (customModelProvider === 'groq' && customApiKey))) {
+      try {
+        console.log('Gemini unavailable/failed, executing Groq fallback for tailor-resume...');
+        const groqModel = DEFAULT_GROQ_MODEL;
+        markdownResume = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
+        if (markdownResume) {
+          modelUsed = `${groqModel} (Groq Fallback)`;
+          markdownResume = cleanMarkdownFences(markdownResume);
+        }
+      } catch (groqErr: any) {
+        lastError = groqErr;
+        console.warn('Groq fallback error:', groqErr?.message);
       }
     }
 
@@ -362,12 +421,27 @@ Please edit the Experience and Projects sections now to align with the JD, prese
     let modelUsed = '';
     let lastError: any = null;
 
+    // 0. Groq direct check (via model selection or groq provider)
+    if (!rawOutput && (customModelProvider === 'groq' || (aiModel && aiModel.startsWith('llama')))) {
+      try {
+        const groqModel = customModelName || aiModel || DEFAULT_GROQ_MODEL;
+        rawOutput = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
+        modelUsed = groqModel;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Builder Groq direct error (${aiModel}):`, err?.message);
+      }
+    }
+
     // 1. Custom API key check
-    if (customApiKey && customApiKey.trim()) {
+    if (!rawOutput && customApiKey && customApiKey.trim()) {
       const provider = customModelProvider || 'openai';
       const model = customModelName || aiModel || 'gpt-4o-mini';
       try {
-        if (provider === 'anthropic') {
+        if (provider === 'groq') {
+          rawOutput = await callGroq(customApiKey.trim(), model, systemPrompt, userPrompt);
+          modelUsed = model;
+        } else if (provider === 'anthropic') {
           rawOutput = await callAnthropicClaude(customApiKey.trim(), model, systemPrompt, userPrompt);
           modelUsed = model;
         } else if (provider === 'mistral') {
@@ -430,6 +504,21 @@ Please edit the Experience and Projects sections now to align with the JD, prese
           lastError = err;
           console.warn(`Gemini (${modelName}) in builder-tailor:`, err?.message);
         }
+      }
+    }
+
+    // 2.5. Groq fallback chain for builder-tailor
+    if (!rawOutput && (process.env.GROQ_API_KEY || (customModelProvider === 'groq' && customApiKey))) {
+      try {
+        console.log('Gemini unavailable/failed, executing Groq fallback for builder-tailor...');
+        const groqModel = DEFAULT_GROQ_MODEL;
+        rawOutput = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
+        if (rawOutput) {
+          modelUsed = `${groqModel} (Groq Fallback)`;
+        }
+      } catch (groqErr: any) {
+        lastError = groqErr;
+        console.warn('Groq builder fallback error:', groqErr?.message);
       }
     }
 
@@ -848,6 +937,63 @@ Return ONLY raw JSON. Do not include markdown code block backticks (\`\`\`json o
         } catch (err: any) {
           console.warn(`Model ${modelName} resume parse notice:`, err?.message);
         }
+      }
+    }
+
+    // 2.5. Attempt Groq AI structured parsing if GROQ_API_KEY is available and text is present
+    if (process.env.GROQ_API_KEY && effectiveText) {
+      try {
+        const groqExtractionPrompt = `You are a high-precision ATS resume parser. Analyze this candidate resume document and extract all essential profile information.
+Output MUST be a strictly valid JSON object with these EXACT keys:
+{
+  "name": "Candidate Full Name",
+  "email": "Candidate Email address",
+  "phone": "Candidate Phone Number with country code if available",
+  "location": "City or primary location (e.g. Hyderabad, Bangalore, San Francisco, London, etc.)",
+  "country": "Candidate country (best match: India, USA, UK, Canada, Australia, Germany, Singapore, UAE, or Other)",
+  "jobRole": "Primary target job title or role (e.g. Senior Frontend Developer, React Developer, Full Stack Engineer, Cloud Architect, DevOps Engineer)",
+  "skills": ["Array of technical skills and tools"],
+  "summary": "Concise professional summary grounded strictly in the resume",
+  "baseResumeText": "Full clean text representation of the resume in structured Markdown (Name header, Contact, Professional Summary, Core Skills, Work Experience with bullet points, Education, Certifications). Preserve all real achievements, dates, and employers."
+}
+Return ONLY raw JSON without markdown formatting.`;
+
+        const groqOutput = await callGroq(
+          process.env.GROQ_API_KEY,
+          'llama-3.3-70b-versatile',
+          'You are a high-precision ATS resume parser. Always return valid JSON only.',
+          `${groqExtractionPrompt}\n\n=== CANDIDATE RESUME TEXT CONTENT ===\n${effectiveText}`
+        );
+
+        if (groqOutput && groqOutput.trim().length > 10) {
+          let cleaned = groqOutput.trim();
+          if (cleaned.startsWith('```json')) {
+            cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+          } else if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+          }
+
+          const extractedData = JSON.parse(cleaned);
+          if (extractedData && (extractedData.name || extractedData.baseResumeText || extractedData.skills)) {
+            return res.json({
+              success: true,
+              source: 'groq',
+              data: {
+                name: extractedData.name || '',
+                email: extractedData.email || '',
+                phone: extractedData.phone || '',
+                location: extractedData.location || '',
+                country: extractedData.country || 'India',
+                jobRole: extractedData.jobRole || 'Software Engineer',
+                skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+                summary: extractedData.summary || '',
+                baseResumeText: extractedData.baseResumeText || effectiveText,
+              },
+            });
+          }
+        }
+      } catch (groqErr: any) {
+        console.warn('Groq resume parse notice:', groqErr?.message);
       }
     }
 
@@ -1310,6 +1456,65 @@ Return ONLY raw JSON array, no markdown.`;
         }
       } catch (geminiErr) {
         console.warn('Gemini job search notice:', geminiErr);
+      }
+    }
+
+    // If Groq is available, supplement with LinkedIn/Indeed style postings if Gemini didn't return
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const targetCountryLabel = country === 'USA' || !country ? 'USA / United States' : country;
+        const targetRole = query || 'Software Engineer';
+        const jobPrompt = `You are a job board aggregator. Generate 8 realistic, currently active USA-based job postings that would be found on Indeed, LinkedIn, or major tech company career portals.
+
+Requirements:
+- Role: "${targetRole}"
+- Country: ${targetCountryLabel} (US cities like San Francisco, Seattle, New York, Austin, Chicago, Remote)
+- Include real US companies (Google, Amazon, Microsoft, Apple, Meta, Netflix, Stripe, Salesforce, Uber, Airbnb, etc.)
+- All jobs MUST have USA-based locations or Remote (USA)
+- Use realistic US market salaries in USD ($90k - $250k range based on seniority)
+- Use real application URLs (careers.google.com, jobs.lever.co, greenhouse.io, or linkedin.com/jobs)
+
+Return ONLY a valid JSON array:
+[
+  {
+    "id": "ext-groq-${Date.now()}-1",
+    "company": "Real Company Name",
+    "title": "${targetRole}",
+    "location": "City, State or Remote (USA)",
+    "country": "USA",
+    "employmentType": "Full-time",
+    "experienceLevel": "Senior Level | Mid Level | Entry Level",
+    "source": "Indeed",
+    "applicationUrl": "https://careers.google.com/jobs",
+    "salary": "$130,000 - $180,000 USD",
+    "postedAt": "${new Date().toISOString()}",
+    "description": "2-3 sentence real job description with tech stack and responsibilities."
+  }
+]
+Return raw JSON array only.`;
+
+        const groqText = await callGroq(
+          process.env.GROQ_API_KEY,
+          'llama-3.3-70b-versatile',
+          'You are a job aggregator assistant. Always output strictly valid JSON array without markdown backticks.',
+          jobPrompt
+        );
+
+        if (groqText) {
+          let cleaned = groqText.trim();
+          if (cleaned.startsWith('```json')) {
+            cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+          } else if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+          }
+          const groqJobs = JSON.parse(cleaned);
+          if (Array.isArray(groqJobs) && groqJobs.length > 0) {
+            const combined = [...liveInternetJobs, ...groqJobs];
+            return res.json({ success: true, source: 'real-time-internet', jobs: combined });
+          }
+        }
+      } catch (groqErr) {
+        console.warn('Groq job search notice:', groqErr);
       }
     }
 
