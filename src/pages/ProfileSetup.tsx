@@ -32,120 +32,19 @@ interface AiModelOption {
 }
 
 const AI_MODELS: AiModelOption[] = [
-  // Groq (LPU Ultra-fast - uses server key or custom key)
   {
-    id: 'llama-3.3-70b-versatile',
-    label: 'Llama 3.3 70B (Groq)',
-    provider: 'groq',
-    badge: 'Fast',
-    description: 'Blazing fast inference via Groq LPU. Top quality ATS resume tailoring.',
-    requiresKey: false,
-    color: 'bg-orange-50 border-orange-200 text-orange-800',
-  },
-  {
-    id: 'llama-3.1-8b-instant',
-    label: 'Llama 3.1 8B (Groq)',
-    provider: 'groq',
-    badge: 'Fast',
-    description: 'Ultra-low latency instant generation via Groq.',
-    requiresKey: false,
-    color: 'bg-orange-50 border-orange-200 text-orange-800',
-  },
-  // Google (uses server key — free for user)
-  {
-    id: 'gemini-2.0-flash',
-    label: 'Gemini 2.0 Flash',
-    provider: 'google',
-    badge: 'Free',
-    description: 'Fast, intelligent, and free. Default server-powered Gemini model.',
-    requiresKey: false,
-    color: 'bg-blue-50 border-blue-200 text-blue-800',
-  },
-  {
-    id: 'gemini-2.5-flash',
-    label: 'Gemini 2.5 Flash',
-    provider: 'google',
-    badge: 'Fast',
-    description: 'Latest Gemini Flash variant — great quality with low latency.',
-    requiresKey: false,
-    color: 'bg-blue-50 border-blue-200 text-blue-800',
-  },
-  {
-    id: 'gemini-2.5-pro',
-    label: 'Gemini 2.5 Pro',
-    provider: 'google',
-    badge: 'Powerful',
-    description: 'Most capable Google model. Requires your own Gemini API key.',
-    requiresKey: true,
-    color: 'bg-violet-50 border-violet-200 text-violet-800',
-  },
-  // OpenAI
-  {
-    id: 'gpt-4o-mini',
-    label: 'GPT-4o Mini',
-    provider: 'openai',
-    badge: 'Fast',
-    description: 'OpenAI\'s efficient and affordable model. Requires your own OpenAI key.',
-    requiresKey: true,
-    color: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-  },
-  {
-    id: 'gpt-4o',
-    label: 'GPT-4o',
+    id: 'openai/gpt-oss-120b',
+    label: 'openai/gpt-oss-120b',
     provider: 'openai',
     badge: 'Powerful',
-    description: 'OpenAI\'s most capable model with vision and reasoning. Requires your own OpenAI key.',
-    requiresKey: true,
+    description: "OpenAI's premier 117B parameter open-weight reasoning model for ATS resume tailoring.",
+    requiresKey: false,
     color: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-  },
-  // Anthropic Claude
-  {
-    id: 'claude-3-5-haiku-20241022',
-    label: 'Claude 3.5 Haiku',
-    provider: 'anthropic',
-    badge: 'Fast',
-    description: 'Anthropic\'s fastest model. Excellent for resume generation. Requires your Claude key.',
-    requiresKey: true,
-    color: 'bg-amber-50 border-amber-200 text-amber-800',
-  },
-  {
-    id: 'claude-3-5-sonnet-20241022',
-    label: 'Claude 3.5 Sonnet',
-    provider: 'anthropic',
-    badge: 'Powerful',
-    description: 'Anthropic\'s best-in-class model. World-class writing quality. Requires your Claude key.',
-    requiresKey: true,
-    color: 'bg-amber-50 border-amber-200 text-amber-800',
-  },
-  // Mistral
-  {
-    id: 'mistral-small-latest',
-    label: 'Mistral Small',
-    provider: 'mistral',
-    badge: 'Fast',
-    description: 'Efficient European AI model. Requires your Mistral API key.',
-    requiresKey: true,
-    color: 'bg-rose-50 border-rose-200 text-rose-800',
-  },
-  // Custom
-  {
-    id: '__custom__',
-    label: 'Custom / Other',
-    provider: 'other',
-    badge: 'Premium',
-    description: 'Use any custom model (e.g. Llama, Groq, local OpenAI-compatible). Requires your API key.',
-    requiresKey: true,
-    color: 'bg-neutral-50 border-neutral-200 text-neutral-700',
   },
 ];
 
 const PROVIDER_LABELS: Record<string, string> = {
-  groq: '⚡ Groq (Llama 3.3 / LPU)',
-  google: '🔷 Google (Gemini)',
-  openai: '🟢 OpenAI (GPT)',
-  anthropic: '🟠 Anthropic (Claude)',
-  mistral: '🔴 Mistral AI',
-  other: '⚙️ Custom / Other',
+  openai: 'OpenAI (Open-Weight)',
 };
 
 const BADGE_STYLES: Record<string, string> = {
@@ -173,7 +72,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
   const [resumeFileName, setResumeFileName] = useState(profile?.baseResumeFileName || 'base_resume.txt');
 
   // AI Model state
-  const [selectedModelId, setSelectedModelId] = useState(profile?.aiModel || 'gemini-2.0-flash');
+  const [selectedModelId, setSelectedModelId] = useState('openai/gpt-oss-120b');
   const [customApiKey, setCustomApiKey] = useState(profile?.customApiKey || '');
   const [customModelName, setCustomModelName] = useState(profile?.customModelName || '');
   const [showAiSection, setShowAiSection] = useState(isEditing);
@@ -547,7 +446,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                   <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">AI Model Settings</h2>
                   <p className="text-xs text-neutral-500 mt-0.5">
                     Current: <span className="font-medium text-neutral-700">{selectedModel.label}</span>
-                    {selectedModel.requiresKey && customApiKey ? (
+                    {customApiKey ? (
                       <span className="ml-2 inline-flex items-center gap-1 text-emerald-700">
                         <Shield className="w-3 h-3" /> Key saved
                       </span>
@@ -565,11 +464,11 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
             {showAiSection && (
               <div className="mt-4 space-y-4">
                 {/* Info banner */}
-                <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-800 flex items-start gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-emerald-800 flex items-start gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold">Fast & Free models</span> (Groq Llama 3.3, Gemini) use the server's configured keys — no personal key required.{' '}
-                    <span className="font-semibold">Premium models</span> (GPT-4o, Claude, Gemini Pro) require your own API key. You can also provide your own personal Groq key below.
+                    <span className="font-semibold">openai/gpt-oss-120b</span> is configured as your active AI tailoring model.
+                    It delivers state-of-the-art 117B parameter reasoning and strict ATS keyword alignment.
                   </div>
                 </div>
 
@@ -580,17 +479,17 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                       <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-widest mb-1.5">
                         {PROVIDER_LABELS[provider] || provider}
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         {models.map(model => (
                           <button
                             key={model.id}
                             type="button"
-                            id={`ai-model-${model.id}`}
+                            id={`ai-model-${model.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`}
                             onClick={() => setSelectedModelId(model.id)}
-                            className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                            className={`text-left p-3.5 rounded-lg border-2 transition-all cursor-pointer ${
                               selectedModelId === model.id
                                 ? 'border-neutral-900 bg-neutral-900 text-white shadow-md'
-                                : `border-neutral-200 hover:border-neutral-400 bg-white`
+                                : 'border-neutral-200 hover:border-neutral-400 bg-white'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
@@ -604,17 +503,16 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                                       ? 'bg-white/20 text-white'
                                       : BADGE_STYLES[model.badge]
                                   }`}>
-                                    {model.badge === 'Free' && <Zap className="w-2.5 h-2.5 mr-0.5" />}
-                                    {model.badge === 'Powerful' && <Star className="w-2.5 h-2.5 mr-0.5" />}
+                                    <Star className="w-2.5 h-2.5 mr-0.5" />
                                     {model.badge}
                                   </span>
-                                  {model.requiresKey && (
-                                    <span className={`inline-flex items-center gap-0.5 text-[10px] ${selectedModelId === model.id ? 'text-white/70' : 'text-neutral-400'}`}>
-                                      <KeyRound className="w-2.5 h-2.5" /> Key
+                                  {customApiKey && (
+                                    <span className={`inline-flex items-center gap-0.5 text-[10px] ${selectedModelId === model.id ? 'text-emerald-300' : 'text-emerald-700 font-medium'}`}>
+                                      <Shield className="w-2.5 h-2.5" /> Key set
                                     </span>
                                   )}
                                 </div>
-                                <p className={`text-[11px] mt-0.5 leading-tight ${selectedModelId === model.id ? 'text-white/70' : 'text-neutral-500'}`}>
+                                <p className={`text-[11px] mt-1 leading-relaxed ${selectedModelId === model.id ? 'text-white/80' : 'text-neutral-500'}`}>
                                   {model.description}
                                 </p>
                               </div>
@@ -629,85 +527,46 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                   ))}
                 </div>
 
-                {/* API Key Input — shown when model requires a key or is Groq/Custom */}
-                {(selectedModel.requiresKey || isCustom || selectedModel.provider === 'groq') && (
-                  <div className="space-y-3 p-4 rounded-xl bg-neutral-50 border border-neutral-200">
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="w-4 h-4 text-neutral-600" />
-                      <span className="text-xs font-semibold text-neutral-800">
-                        {isCustom ? 'Custom Model Settings' : `${selectedModel.label} API Key ${selectedModel.provider === 'groq' ? '(Optional)' : ''}`}
-                      </span>
-                    </div>
-
-                    {isCustom && (
-                      <div>
-                        <label className="block text-xs font-medium text-neutral-700 mb-1">
-                          Custom Model Name / Identifier
-                        </label>
-                        <input
-                          id="custom-model-name-input"
-                          type="text"
-                          value={customModelName}
-                          onChange={e => setCustomModelName(e.target.value)}
-                          placeholder="e.g. llama-3.3-70b-versatile, mixtral-8x7b-32768, gpt-4-turbo"
-                          className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900"
-                        />
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-xs font-medium text-neutral-700 mb-1">
-                        API Key {selectedModel.provider === 'groq' ? '(leave empty to use server GROQ_API_KEY)' : ''}
-                        <span className="text-neutral-400 font-normal ml-1">
-                          ({selectedModel.provider === 'groq'
-                            ? 'from console.groq.com'
-                            : selectedModel.provider === 'openai'
-                            ? 'from platform.openai.com'
-                            : selectedModel.provider === 'anthropic'
-                            ? 'from console.anthropic.com'
-                            : selectedModel.provider === 'mistral'
-                            ? 'from console.mistral.ai'
-                            : selectedModel.provider === 'google'
-                            ? 'from aistudio.google.com'
-                            : 'your provider console'
-                          })
-                        </span>
-                      </label>
-                      <div className="relative">
-                        <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
-                        <input
-                          id="custom-api-key-input"
-                          type={showApiKey ? 'text' : 'password'}
-                          value={customApiKey}
-                          onChange={e => setCustomApiKey(e.target.value)}
-                          placeholder={
-                            selectedModel.provider === 'groq'
-                              ? 'gsk_... (optional, server key used if blank)'
-                              : selectedModel.provider === 'openai'
-                              ? 'sk-...'
-                              : selectedModel.provider === 'anthropic'
-                              ? 'sk-ant-...'
-                              : selectedModel.provider === 'mistral'
-                              ? 'Your Mistral key...'
-                              : 'Your API key...'
-                          }
-                          className="w-full pl-9 pr-20 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-3 top-2 text-xs text-neutral-500 hover:text-neutral-800 cursor-pointer font-medium"
-                        >
-                          {showApiKey ? 'Hide' : 'Show'}
-                        </button>
-                      </div>
-                      <p className="text-[11px] text-neutral-400 mt-1 flex items-center gap-1">
-                        <Shield className="w-3 h-3" />
-                        Stored only in your profile. Never shared or logged by this app.
-                      </p>
-                    </div>
+                {/* API Key Input (Optional) */}
+                <div className="space-y-3 p-4 rounded-xl bg-neutral-50 border border-neutral-200">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-neutral-600" />
+                    <span className="text-xs font-semibold text-neutral-800">
+                      API Key (Optional)
+                    </span>
                   </div>
-                )}
+
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                      Custom API Key
+                      <span className="text-neutral-400 font-normal ml-1">
+                        (Groq, OpenRouter, or OpenAI key — leave empty to use server default)
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+                      <input
+                        id="custom-api-key-input"
+                        type={showApiKey ? 'text' : 'password'}
+                        value={customApiKey}
+                        onChange={e => setCustomApiKey(e.target.value)}
+                        placeholder="gsk_... / sk-or-... / sk-... (optional)"
+                        className="w-full pl-9 pr-20 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-3 top-2 text-xs text-neutral-500 hover:text-neutral-800 cursor-pointer font-medium"
+                      >
+                        {showApiKey ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-neutral-400 mt-1 flex items-center gap-1">
+                      <Shield className="w-3 h-3" />
+                      Stored only in your profile. Never shared or logged by this app.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

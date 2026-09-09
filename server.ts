@@ -133,7 +133,7 @@ async function callGroq(
   if (!key) {
     throw new Error('GROQ_API_KEY not configured. Please add GROQ_API_KEY=gsk_... to your .env or Profile.');
   }
-  const chosenModel = model && model.startsWith('llama') ? model : DEFAULT_GROQ_MODEL;
+  const chosenModel = model || DEFAULT_GROQ_MODEL;
   return callOpenAiCompatible(key.trim(), chosenModel, GROQ_BASE_URL, systemPrompt, userPrompt);
 }
 
@@ -219,7 +219,7 @@ Please produce the tailored ATS resume according to the strict non-hallucination
     let lastError: any = null;
 
     // --- Option 0: Groq requested directly (via profile selection or model name) ---
-    if (!markdownResume && (customModelProvider === 'groq' || (aiModel && aiModel.startsWith('llama')))) {
+    if (!markdownResume && (customModelProvider === 'groq' || (aiModel && (aiModel.startsWith('llama') || aiModel.includes('gpt-oss') || aiModel.startsWith('openai/'))))) {
       try {
         const groqModel = customModelName || aiModel || DEFAULT_GROQ_MODEL;
         markdownResume = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
@@ -231,21 +231,34 @@ Please produce the tailored ATS resume according to the strict non-hallucination
       }
     }
 
-    // --- Option 1: User's custom API key (premium) ---
+    // --- Option 1: User's custom API key ---
     if (!markdownResume && customApiKey && customApiKey.trim()) {
-      const provider = customModelProvider || 'openai';
-      const model = customModelName || aiModel || 'gpt-4o-mini';
+      const key = customApiKey.trim();
+      const model = customModelName || aiModel || 'openai/gpt-oss-120b';
+      let provider = customModelProvider;
+      if (key.startsWith('gsk_')) provider = 'groq';
+      else if (key.startsWith('sk-or-')) provider = 'openrouter';
+      else if (key.startsWith('sk-ant-')) provider = 'anthropic';
+      else if (!provider) provider = 'openai';
+
       try {
         if (provider === 'groq') {
-          markdownResume = await callGroq(customApiKey.trim(), model, systemPrompt, userPrompt);
+          markdownResume = await callGroq(key, model, systemPrompt, userPrompt);
           modelUsed = model;
         } else if (provider === 'anthropic') {
-          markdownResume = await callAnthropicClaude(customApiKey.trim(), model, systemPrompt, userPrompt);
+          markdownResume = await callAnthropicClaude(key, model, systemPrompt, userPrompt);
           modelUsed = model;
         } else if (provider === 'mistral') {
           markdownResume = await callOpenAiCompatible(
-            customApiKey.trim(), model,
+            key, model,
             'https://api.mistral.ai/v1',
+            systemPrompt, userPrompt
+          );
+          modelUsed = model;
+        } else if (provider === 'openrouter' || key.startsWith('sk-or-')) {
+          markdownResume = await callOpenAiCompatible(
+            key, model,
+            'https://openrouter.ai/api/v1',
             systemPrompt, userPrompt
           );
           modelUsed = model;
@@ -253,7 +266,7 @@ Please produce the tailored ATS resume according to the strict non-hallucination
           // OpenAI or any openai-compatible
           const baseUrl = provider === 'google' ? 'https://generativelanguage.googleapis.com/v1beta/openai' : 'https://api.openai.com/v1';
           markdownResume = await callOpenAiCompatible(
-            customApiKey.trim(), model, baseUrl, systemPrompt, userPrompt
+            key, model, baseUrl, systemPrompt, userPrompt
           );
           modelUsed = model;
         }
@@ -422,7 +435,7 @@ Please edit the Experience and Projects sections now to align with the JD, prese
     let lastError: any = null;
 
     // 0. Groq direct check (via model selection or groq provider)
-    if (!rawOutput && (customModelProvider === 'groq' || (aiModel && aiModel.startsWith('llama')))) {
+    if (!rawOutput && (customModelProvider === 'groq' || (aiModel && (aiModel.startsWith('llama') || aiModel.includes('gpt-oss') || aiModel.startsWith('openai/'))))) {
       try {
         const groqModel = customModelName || aiModel || DEFAULT_GROQ_MODEL;
         rawOutput = await callGroq(customApiKey?.trim(), groqModel, systemPrompt, userPrompt);
@@ -435,20 +448,35 @@ Please edit the Experience and Projects sections now to align with the JD, prese
 
     // 1. Custom API key check
     if (!rawOutput && customApiKey && customApiKey.trim()) {
-      const provider = customModelProvider || 'openai';
-      const model = customModelName || aiModel || 'gpt-4o-mini';
+      const key = customApiKey.trim();
+      const model = customModelName || aiModel || 'openai/gpt-oss-120b';
+      let provider = customModelProvider;
+      if (key.startsWith('gsk_')) provider = 'groq';
+      else if (key.startsWith('sk-or-')) provider = 'openrouter';
+      else if (key.startsWith('sk-ant-')) provider = 'anthropic';
+      else if (!provider) provider = 'openai';
+
       try {
         if (provider === 'groq') {
-          rawOutput = await callGroq(customApiKey.trim(), model, systemPrompt, userPrompt);
+          rawOutput = await callGroq(key, model, systemPrompt, userPrompt);
           modelUsed = model;
         } else if (provider === 'anthropic') {
-          rawOutput = await callAnthropicClaude(customApiKey.trim(), model, systemPrompt, userPrompt);
+          rawOutput = await callAnthropicClaude(key, model, systemPrompt, userPrompt);
           modelUsed = model;
         } else if (provider === 'mistral') {
           rawOutput = await callOpenAiCompatible(
-            customApiKey.trim(),
+            key,
             model,
             'https://api.mistral.ai/v1',
+            systemPrompt,
+            userPrompt
+          );
+          modelUsed = model;
+        } else if (provider === 'openrouter' || key.startsWith('sk-or-')) {
+          rawOutput = await callOpenAiCompatible(
+            key,
+            model,
+            'https://openrouter.ai/api/v1',
             systemPrompt,
             userPrompt
           );
@@ -459,7 +487,7 @@ Please edit the Experience and Projects sections now to align with the JD, prese
               ? 'https://generativelanguage.googleapis.com/v1beta/openai'
               : 'https://api.openai.com/v1';
           rawOutput = await callOpenAiCompatible(
-            customApiKey.trim(),
+            key,
             model,
             baseUrl,
             systemPrompt,
