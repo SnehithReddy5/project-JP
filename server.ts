@@ -651,36 +651,56 @@ function generateInPlaceResumeFallback(
 
   let output = originalResume;
 
-  // Replace Summary if exists
+  // 1. Replace or Inject Summary
   if (/##?\s*PROFESSIONAL\s+SUMMARY/i.test(output)) {
     output = output.replace(
-      /(##?\s*PROFESSIONAL\s+SUMMARY\s*\n)([\s\S]*?)(?=\n##|\n#[^#]|$)/i,
-      `$1${tailoredSummary}\n`
+      /(##?\s*PROFESSIONAL\s+SUMMARY\s*\n+)([\s\S]*?)(?=\n\s*(?:##|\*\*|CORE|TECHNICAL))/i,
+      `$1${tailoredSummary}\n\n`
     );
+  } else if (/PROFESSIONAL\s+SUMMARY/i.test(output)) {
+    output = output.replace(
+      /(PROFESSIONAL\s+SUMMARY\s*\n+)([\s\S]*?)(?=\n\s*(?:CORE\s+SKILLS|TECHNICAL|PROFESSIONAL\s+EXPERIENCE|EXPERIENCE))/i,
+      `## PROFESSIONAL SUMMARY\n${tailoredSummary}\n\n`
+    );
+  } else {
+    // Inject at the beginning or before Core Skills
+    if (/(?:##?\s*)?(?:CORE\s+SKILLS|TECHNICAL\s+&?\s*CORE\s+SKILLS)/i.test(output)) {
+      output = output.replace(
+        /(?:##?\s*)?(CORE\s+SKILLS|TECHNICAL\s+&?\s*CORE\s+SKILLS)/i,
+        `## PROFESSIONAL SUMMARY\n${tailoredSummary}\n\n## $1`
+      );
+    } else {
+      output = `## PROFESSIONAL SUMMARY\n${tailoredSummary}\n\n` + output;
+    }
   }
 
-  // Replace Core Skills if exists
+  // 2. Replace Core Skills if exists
   if (/##?\s*(?:TECHNICAL\s+&?\s*)?(?:CORE\s+)?SKILLS/i.test(output)) {
     output = output.replace(
-      /(##?\s*(?:TECHNICAL\s+&?\s*)?(?:CORE\s+)?SKILLS\s*\n)([\s\S]*?)(?=\n##|\n#[^#]|$)/i,
-      `$1${skillsLines.slice(1).join('\n')}\n`
+      /(##?\s*(?:TECHNICAL\s+&?\s*)?(?:CORE\s+)?SKILLS\s*\n+)([\s\S]*?)(?=\n\s*(?:##|\*\*|PROFESSIONAL\s+EXPERIENCE|EXPERIENCE))/i,
+      `$1${skillsLines.slice(1).join('\n')}\n\n`
+    );
+  } else if (/(?:CORE\s+SKILLS|TECHNICAL\s+SKILLS)/i.test(output)) {
+    output = output.replace(
+      /((?:CORE\s+SKILLS|TECHNICAL\s+SKILLS)\s*\n+)([\s\S]*?)(?=\n\s*(?:PROFESSIONAL\s+EXPERIENCE|EXPERIENCE))/i,
+      `## Core Skills\n${skillsLines.slice(1).join('\n')}\n\n`
     );
   }
 
-  // Replace Tiger Analytics Experience bullets if present
-  if (/Tiger\s*Analytics/i.test(output)) {
-    output = output.replace(
-      /(###?\s*[^#\n]*Tiger\s*Analytics[^\n]*\n\*?[^\n]*\*?\n)([\s\S]*?)(?=\n###|\n##|$)/i,
-      (match, header) => `${header}${tigerBullets.map(b => `- ${b}`).join('\n')}\n`
-    );
+  // 3. Replace Tiger Analytics Experience bullets (handles plain text and markdown headers)
+  const tigerRegex = /(Tiger\s*Analytics[^\n]*\n+)([\s\S]*?)(?=(?:\n+[^\n]*(?:Software Engineer|Manhattan\s*Associates)|##?\s*EDUCATION|EDUCATION|$))/i;
+  if (tigerRegex.test(output)) {
+    output = output.replace(tigerRegex, (match, header) => {
+      return `${header}${tigerBullets.map(b => `- ${b}`).join('\n')}\n\n`;
+    });
   }
 
-  // Replace Manhattan Associates Experience bullets if present
-  if (/Manhattan\s*Associates/i.test(output)) {
-    output = output.replace(
-      /(###?\s*[^#\n]*Manhattan\s*Associates[^\n]*\n\*?[^\n]*\*?\n)([\s\S]*?)(?=\n###|\n##|$)/i,
-      (match, header) => `${header}${manhattanBullets.map(b => `- ${b}`).join('\n')}\n`
-    );
+  // 4. Replace Manhattan Associates Experience bullets (handles plain text and markdown headers)
+  const manhattanRegex = /(Manhattan\s*Associates[^\n]*\n+)([\s\S]*?)(?=(?:\n+##?\s*EDUCATION|\n+EDUCATION|\n+##?\s*CERTIFICATIONS|\n+CERTIFICATIONS|$))/i;
+  if (manhattanRegex.test(output)) {
+    output = output.replace(manhattanRegex, (match, header) => {
+      return `${header}${manhattanBullets.map(b => `- ${b}`).join('\n')}\n\n`;
+    });
   }
 
   return output;
