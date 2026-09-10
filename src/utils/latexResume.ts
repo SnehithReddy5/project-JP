@@ -75,14 +75,20 @@ export function parseLatexToMarkdown(rawLatex: string): string {
     if (emailMatch) contactLines.push(emailMatch[1] || emailMatch[0]);
 
     // Find phone
-    const phoneMatch = centerContent.match(/(\+?\d[\d\s,()–-]{8,}\d)/);
-    if (phoneMatch) contactLines.push(phoneMatch[1].replace(/\\,/g, ' ').replace(/\s+/g, ' ').trim());
+    const phoneMatch = centerContent.match(/(\+?[\d\\,\s()–-]{8,}\d)/);
+    if (phoneMatch) {
+      const cleanPhone = phoneMatch[1].replace(/\\,/g, ' ').replace(/\s+/g, ' ').trim();
+      if (cleanPhone.length >= 8) contactLines.push(cleanPhone);
+    }
 
-    // Find LinkedIn / Portfolio
-    const linkMatches = centerContent.matchAll(/\\href\{([^}]+)\}\{([^}]+)\}/g);
+    // Find LinkedIn / Portfolio (allowing optional whitespace or newline between braces)
+    const linkMatches = [...centerContent.matchAll(/\\href\{([^}]+)\}\s*\{([^}]+)\}/g)];
     for (const m of linkMatches) {
-      if (!m[1].startsWith('mailto:') && !contactLines.includes(m[2])) {
-        contactLines.push(m[2] || m[1]);
+      if (!m[1].startsWith('mailto:')) {
+        const linkText = cleanLatexFormatting(m[2] || m[1]);
+        if (!contactLines.includes(linkText)) {
+          contactLines.push(linkText);
+        }
       }
     }
   }
@@ -113,20 +119,29 @@ export function parseLatexToMarkdown(rawLatex: string): string {
     }
 
     if (sectionTitle.includes('SKILL')) {
-      // Parse technical skills
-      const skillLines = sectionBody.split(/\\\\|\n/).map(l => l.trim()).filter(Boolean);
-      for (const line of skillLines) {
-        const itemMatch = line.match(/\\textbf\{([^}]+):?\}\s*:?\s*(.*)/);
-        if (itemMatch) {
-          const category = cleanLatexFormatting(itemMatch[1]).replace(/:$/, '').trim();
-          const items = cleanLatexFormatting(itemMatch[2]).replace(/\\/g, '').trim();
-          if (category && items) {
-            lines.push(`- **${category}:** ${items}`);
-          }
-        } else {
-          const cleanedLine = cleanLatexFormatting(line);
-          if (cleanedLine && !cleanedLine.startsWith('\\')) {
-            lines.push(cleanedLine);
+      // Find each \textbf{Category: ...} followed by items
+      const skillRegex = /\\textbf\{([^}]+:?)\}:?\s*([\s\S]*?)(?=(?:\\\\|\n\s*\\textbf|\n\s*\}\}|\\end\{itemize\}|$))/gi;
+      let skMatch: RegExpExecArray | null;
+      let foundSkills = false;
+
+      while ((skMatch = skillRegex.exec(sectionBody)) !== null) {
+        const cat = cleanLatexFormatting(skMatch[1]).replace(/:$/, '').trim();
+        const items = cleanLatexFormatting(skMatch[2])
+          .replace(/\\\\/g, '')
+          .replace(/\s+/g, ' ')
+          .replace(/^:\s*/, '')
+          .trim();
+        if (cat && items) {
+          lines.push(`- **${cat}:** ${items}`);
+          foundSkills = true;
+        }
+      }
+
+      if (!foundSkills) {
+        const rawLines = sectionBody.split(/\\\\|\n/).map(l => cleanLatexFormatting(l).trim()).filter(Boolean);
+        for (const rl of rawLines) {
+          if (rl && !rl.startsWith('\\')) {
+            lines.push(rl.startsWith('-') ? rl : `- ${rl}`);
           }
         }
       }
@@ -144,15 +159,12 @@ export function parseLatexToMarkdown(rawLatex: string): string {
           const role = cleanLatexFormatting(argsMatch[3]);
           const dates = cleanLatexFormatting(argsMatch[4]);
 
-          const headingLeft = role && company ? `${role} | ${company}` : company || role;
-          const subRight = [dates, location].filter(Boolean).join(' | ');
-
-          lines.push(`\n### ${headingLeft}`);
-          if (subRight) lines.push(`*${subRight}*`);
+          lines.push(`\n### ${company}${location ? ` | ${location}` : ''}`);
+          lines.push(`*${role}${dates ? ` | ${dates}` : ''}*`);
         }
 
         // Extract bullet items
-        const itemMatches = block.matchAll(/\\resumeItem\{([\s\S]*?)\}(?=\s*(?:\\resumeItem|\\resumeItemListEnd|\\resumeSubheading|$))/g);
+        const itemMatches = [...block.matchAll(/\\resumeItem\{([\s\S]*?)\}(?=\s*(?:\\resumeItem|\\resumeItemListEnd|\\resumeSubheading|$))/g)];
         for (const im of itemMatches) {
           const itemText = cleanLatexFormatting(im[1].replace(/\s+/g, ' ').trim());
           if (itemText) lines.push(`- ${itemText}`);
@@ -166,13 +178,25 @@ export function parseLatexToMarkdown(rawLatex: string): string {
       for (const block of projectBlocks) {
         const argsMatch = block.match(/^\s*\{([\s\S]*?)\}\s*\{([^}]*)\}/);
         if (argsMatch) {
-          const titleWithTech = cleanLatexFormatting(argsMatch[1]);
-          const context = cleanLatexFormatting(argsMatch[2]);
+          let titlePart = argsMatch[1];
+          const contextPart = cleanLatexFormatting(argsMatch[2]);
 
-          lines.push(`\n### ${titleWithTech}${context ? ` | ${context}` : ''}`);
+          let techStack = '';
+          const techMatch = titlePart.match(/\\emph\{([^}]+)\}/i) || titlePart.match(/\$\|\$\s*(.*)/i);
+          if (techMatch) {
+            techStack = cleanLatexFormatting(techMatch[1]);
+            titlePart = titlePart.replace(techMatch[0], '');
+          }
+
+          const cleanTitle = cleanLatexFormatting(titlePart).replace(/\|\s*$/, '').trim();
+
+          lines.push(`\n### ${cleanTitle}${contextPart ? ` | ${contextPart}` : ''}`);
+          if (techStack) {
+            lines.push(`*${techStack}*`);
+          }
         }
 
-        const itemMatches = block.matchAll(/\\resumeItem\{([\s\S]*?)\}(?=\s*(?:\\resumeItem|\\resumeItemListEnd|\\resumeProjectHeading|$))/g);
+        const itemMatches = [...block.matchAll(/\\resumeItem\{([\s\S]*?)\}(?=\s*(?:\\resumeItem|\\resumeItemListEnd|\\resumeProjectHeading|$))/g)];
         for (const im of itemMatches) {
           const itemText = cleanLatexFormatting(im[1].replace(/\s+/g, ' ').trim());
           if (itemText) lines.push(`- ${itemText}`);
@@ -187,13 +211,12 @@ export function parseLatexToMarkdown(rawLatex: string): string {
         const argsMatch = block.match(/^\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}/);
         if (argsMatch) {
           const school = cleanLatexFormatting(argsMatch[1]);
-          const loc = cleanLatexFormatting(argsMatch[2]);
+          const location = cleanLatexFormatting(argsMatch[2]);
           const degree = cleanLatexFormatting(argsMatch[3]);
           const dates = cleanLatexFormatting(argsMatch[4]);
 
-          lines.push(`\n### ${degree || school}`);
-          const subInfo = [school, loc, dates].filter(Boolean).join(' | ');
-          if (subInfo && degree) lines.push(`*${subInfo}*`);
+          lines.push(`\n### ${school}${location ? ` | ${location}` : ''}`);
+          lines.push(`*${degree}${dates ? ` | ${dates}` : ''}*`);
         }
       }
       continue;
@@ -202,10 +225,8 @@ export function parseLatexToMarkdown(rawLatex: string): string {
     // Default fallback for any other sections
     const defaultLines = sectionBody.split('\n').map(l => cleanLatexFormatting(l).trim()).filter(Boolean);
     for (const dl of defaultLines) {
-      if (dl.startsWith('-') || dl.startsWith('•')) {
-        lines.push(`- ${dl.replace(/^[-•]\s*/, '')}`);
-      } else {
-        lines.push(dl);
+      if (!dl.startsWith('\\')) {
+        lines.push(dl.startsWith('-') || dl.startsWith('•') ? dl : `- ${dl}`);
       }
     }
   }

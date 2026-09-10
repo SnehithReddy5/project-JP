@@ -1,10 +1,15 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import crypto from 'crypto';
+import { execSync } from 'child_process';
 import dotenv from 'dotenv';
 import { createRequire } from 'module';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+import { generateLatexResumeHtml } from './src/utils/latexHtmlRenderer';
+import { parseLatexToMarkdown, isLatexDocument } from './src/utils/latexResume';
 
 dotenv.config();
 
@@ -539,6 +544,69 @@ Please edit the Experience and Projects sections now to align with the JD, prese
   } catch (error: any) {
     console.error('Error in /api/ai/builder-tailor:', error);
     return res.status(500).json({ error: error?.message || 'Failed to tailor resume.' });
+  }
+});
+
+// Helper to locate Edge or Chrome on host system
+function findBrowserExecutable(): string | null {
+  const possiblePaths = [
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    process.env.CHROME_BIN,
+    process.env.EDGE_BIN,
+  ].filter(Boolean) as string[];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+// Dedicated Vector PDF Compilation Endpoint
+// Compiles resume directly into high-definition vector PDF adhering to Jake's Resume / Overleaf LaTeX specifications
+app.post('/api/ai/render-pdf', async (req, res) => {
+  try {
+    const { markdown, filename = 'Resume' } = req.body;
+    if (!markdown || !markdown.trim()) {
+      return res.status(400).json({ error: 'markdown is required' });
+    }
+
+    const normalizedMd = isLatexDocument(markdown) ? parseLatexToMarkdown(markdown) : markdown;
+    const html = generateLatexResumeHtml(normalizedMd);
+
+    const browserExe = findBrowserExecutable();
+    if (!browserExe) {
+      return res.status(501).json({ error: 'Headless browser not found on host for vector PDF rendering' });
+    }
+
+    const tempId = crypto.randomUUID();
+    const tempHtmlPath = path.join(os.tmpdir(), `resume_${tempId}.html`);
+    const tempPdfPath = path.join(os.tmpdir(), `resume_${tempId}.pdf`);
+
+    fs.writeFileSync(tempHtmlPath, html, 'utf8');
+
+    const cmd = `"${browserExe}" --headless=new --no-sandbox --disable-gpu --print-to-pdf="${tempPdfPath}" --no-pdf-header-footer "file:///${tempHtmlPath.replace(/\\/g, '/')}"`;
+    execSync(cmd, { timeout: 15000 });
+
+    if (!fs.existsSync(tempPdfPath)) {
+      throw new Error('PDF output file was not generated');
+    }
+
+    const pdfBuffer = fs.readFileSync(tempPdfPath);
+
+    try { fs.unlinkSync(tempHtmlPath); } catch {}
+    try { fs.unlinkSync(tempPdfPath); } catch {}
+
+    const cleanFilename = (filename || 'Resume').replace(/[^a-zA-Z0-9_-]/g, '_');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${cleanFilename}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    return res.send(pdfBuffer);
+  } catch (error: any) {
+    console.error('Render PDF error in server.ts:', error);
+    return res.status(500).json({ error: error?.message || 'Failed to generate PDF' });
   }
 });
 

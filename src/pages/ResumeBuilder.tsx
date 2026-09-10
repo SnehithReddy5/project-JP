@@ -336,9 +336,10 @@ export const ResumeBuilder: React.FC = () => {
   const handleDownloadPdf = async () => {
     const docId = 'builder-resume-document';
     const filename = `${profile?.name || 'Candidate'}_${companyName || 'Target'}_Resume`;
+    const content = editedResume || tailorResult?.markdown || resumeText;
     try {
       setIsDownloadingPdf(true);
-      await aiService.downloadResumePdf(docId, filename);
+      await aiService.downloadResumePdf(docId, filename, content);
     } catch (err: any) {
       console.error('Download PDF error:', err);
       setError(err?.message || 'Failed to generate PDF. You can also use the browser Print option.');
@@ -756,8 +757,8 @@ export const ResumeBuilder: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => window.print()}
-                  title="Print Resume"
+                  onClick={() => aiService.printLatexResume(editedResume || tailorResult?.markdown || resumeText)}
+                  title="Print Vector PDF (exact LaTeX format)"
                   className="p-2 rounded-lg border border-neutral-200 bg-white text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 transition-colors cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />

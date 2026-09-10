@@ -97,7 +97,7 @@ export const Applications: React.FC<ApplicationsProps> = ({
       try {
         setDownloading(true);
         const filename = `${app.company}_${app.jobTitle}_Tailored_Resume`.replace(/\s+/g, '_');
-        await aiService.downloadResumePdf('modal-resume-preview', filename);
+        await aiService.downloadResumePdf('modal-resume-preview', filename, app.tailoredResumeMarkdown);
       } catch (err) {
         console.error('Error downloading resume PDF:', err);
       } finally {

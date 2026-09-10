@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
+import { generateLatexResumeHtml } from '../utils/latexHtmlRenderer';
 
 export interface TailorResumeResult {
   markdown: string;
@@ -95,11 +96,79 @@ export const aiService = {
     };
   },
 
-  // Export DOM preview element to crisp, high-quality A4 PDF with multi-page support
-  async downloadResumePdf(elementId: string, filename: string): Promise<void> {
+  // Export high-definition Vector PDF adhering to Jake's Resume / Overleaf LaTeX format
+  async downloadResumePdf(
+    elementId: string,
+    filename: string,
+    markdownContent?: string
+  ): Promise<void> {
+    const cleanName = filename.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // 1. High-Fidelity Server-Side Vector PDF Compiler (Edge/Chrome Headless)
+    if (markdownContent && markdownContent.trim()) {
+      try {
+        const resp = await fetch('/api/ai/render-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            markdown: markdownContent,
+            filename: cleanName,
+          }),
+        });
+
+        if (resp.ok) {
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${cleanName}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          return;
+        }
+      } catch (serverErr) {
+        console.warn('Server vector PDF compilation notice, falling back:', serverErr);
+      }
+    }
+
+    // 2. Client-side isolated printable iframe (native browser vector PDF generator)
+    if (markdownContent && markdownContent.trim()) {
+      try {
+        const printHtml = generateLatexResumeHtml(markdownContent);
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentWindow?.document;
+        if (doc) {
+          doc.open();
+          doc.write(printHtml);
+          doc.close();
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              if (document.body.contains(iframe)) document.body.removeChild(iframe);
+            }, 3000);
+          }, 400);
+          return;
+        }
+      } catch (iframeErr) {
+        console.warn('Iframe print fallback error:', iframeErr);
+      }
+    }
+
+    // 3. Fallback Canvas-based rendering
     const element = document.getElementById(elementId);
     if (!element) {
-      throw new Error('Resume preview element not found');
+      throw new Error(`Resume element with ID "${elementId}" not found in document.`);
     }
 
     try {
@@ -108,16 +177,9 @@ export const aiService = {
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
       });
 
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
+      const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const imgWidth = pageWidth;
@@ -137,14 +199,49 @@ export const aiService = {
         heightLeft -= pageHeight;
       }
 
-      pdf.save(`${filename.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
+      pdf.save(`${cleanName}.pdf`);
     } catch (renderError: any) {
-      console.error('PDF generation error:', renderError);
+      console.error('PDF canvas generation error:', renderError);
       throw new Error(
         renderError?.message ||
-          'Failed to render PDF canvas. Please try again or use the browser Print button to save as PDF.'
+          'Failed to render PDF. Please use the Print button to save as PDF.'
       );
     }
+  },
+
+  // Native browser print with LaTeX format
+  printLatexResume(markdownContent?: string): void {
+    if (markdownContent && markdownContent.trim()) {
+      try {
+        const printHtml = generateLatexResumeHtml(markdownContent);
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentWindow?.document;
+        if (doc) {
+          doc.open();
+          doc.write(printHtml);
+          doc.close();
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              if (document.body.contains(iframe)) document.body.removeChild(iframe);
+            }, 3000);
+          }, 400);
+          return;
+        }
+      } catch (err) {
+        console.warn('Print iframe error:', err);
+      }
+    }
+    window.print();
   },
 
   // Native browser print to PDF
