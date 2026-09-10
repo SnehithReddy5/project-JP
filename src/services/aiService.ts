@@ -152,9 +152,11 @@ export const aiService = {
     window.print();
   },
 
-  // Direct download as Markdown (.md) or Text (.txt) file
-  downloadResumeFile(content: string, filename: string, extension: 'md' | 'txt' = 'md'): void {
-    const mimeType = extension === 'md' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8';
+  // Direct download as Markdown (.md), Text (.txt), or LaTeX (.tex) file
+  downloadResumeFile(content: string, filename: string, extension: 'md' | 'txt' | 'tex' = 'md'): void {
+    let mimeType = 'text/plain;charset=utf-8';
+    if (extension === 'md') mimeType = 'text/markdown;charset=utf-8';
+    if (extension === 'tex') mimeType = 'application/x-tex;charset=utf-8';
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

@@ -4,6 +4,7 @@ import { aiService, BuilderTailorResult } from '../services/aiService';
 import { resumeHistoryService } from '../services/resumeHistoryService';
 import { ResumeBuilderHistoryItem } from '../types';
 import { ResumeDocument, ResumeTheme } from '../components/ResumeDocument';
+import { exportMarkdownToLatex, isLatexDocument } from '../utils/latexResume';
 import {
   Sparkles,
   Download,
@@ -360,6 +361,17 @@ export const ResumeBuilder: React.FC = () => {
     if (!textToDownload) return;
     const filename = `${profile?.name || 'Candidate'}_${companyName || 'Target'}_Resume`;
     aiService.downloadResumeFile(textToDownload, filename, 'txt');
+  };
+
+  // Download LaTeX (.tex) file
+  const handleDownloadLatex = () => {
+    const textToDownload = editedResume || tailorResult?.markdown || resumeText;
+    if (!textToDownload) return;
+    const latexContent = isLatexDocument(textToDownload)
+      ? textToDownload
+      : exportMarkdownToLatex(textToDownload);
+    const filename = `${profile?.name || 'Candidate'}_${companyName || 'Target'}_Resume`;
+    aiService.downloadResumeFile(latexContent, filename, 'tex');
   };
 
   // Filtered History
@@ -776,6 +788,14 @@ export const ResumeBuilder: React.FC = () => {
                     className="px-2.5 py-1.5 rounded-lg border border-neutral-200 bg-white text-neutral-700 hover:text-neutral-900 text-xs font-semibold hover:bg-neutral-50 cursor-pointer"
                   >
                     .txt
+                  </button>
+
+                  <button
+                    onClick={handleDownloadLatex}
+                    title="Download as LaTeX (.tex) - Overleaf / Jake's Resume format"
+                    className="px-2.5 py-1.5 rounded-lg border border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-800 text-xs font-semibold cursor-pointer shadow-xs"
+                  >
+                    .tex
                   </button>
                 </div>
               </div>
