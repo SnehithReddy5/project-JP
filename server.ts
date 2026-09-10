@@ -584,81 +584,15 @@ function analyzeJobDescription(jd: string, targetCompany?: string, targetTitle?:
   };
 }
 
-// In-place keyword alignment helper that actively updates Summary, Skills, and Experience
+// In-place keyword alignment helper: strictly preserves the candidate's authentic uploaded resume
 function generateInPlaceResumeFallback(
   originalResume: string,
   company: string,
   jobDescription: string
 ): string {
-  const analysis = analyzeJobDescription(jobDescription, company);
-
-  // 1. Build targeted Professional Summary
-  const tailoredSummary = `Results-driven ${analysis.role} with proven hands-on experience designing, developing, and deploying robust software and data applications aligned with ${company}'s technical priorities.${
-    analysis.hasPython || analysis.hasSql ? ' Strong foundation in Python, SQL data querying, and scalable application architecture.' : ''
-  }${
-    analysis.hasTimeSeries || analysis.hasMl ? ' Proven background applying statistical modeling, machine learning, and data analytics to optimize key business workflows.' : ''
-  }${
-    analysis.hasLlm ? ' Experienced in modern LLM patterns, prompt engineering, and intelligent workflow automation.' : ''
-  } Committed to engineering best practices, zero-defect delivery, and collaborative cross-functional execution.`;
-
-  // 2. Build aligned Skills Section
-  const skillsLines: string[] = ['## TECHNICAL & CORE SKILLS'];
-  if (analysis.hasPython || analysis.hasSql || analysis.hasSpark) {
-    skillsLines.push(`- **Core Programming & Data:** Python, SQL, ${analysis.hasSpark ? 'Spark, Distributed Systems, ' : ''}REST APIs, Git, CI/CD`);
-  } else {
-    skillsLines.push('- **Core Programming & Systems:** Python, SQL, TypeScript/JavaScript, REST APIs, Git, CI/CD');
-  }
-
-  if (analysis.hasMl || analysis.hasTimeSeries || analysis.hasOptimization) {
-    skillsLines.push(`- **Machine Learning & Analytics:** ${analysis.hasTimeSeries ? 'Time Series Analysis, ' : ''}${analysis.hasOptimization ? 'Process Optimization, ' : ''}Predictive Modeling, Feature Engineering`);
-  }
-
-  if (analysis.hasLlm) {
-    skillsLines.push('- **AI & Modern Technologies:** LLM Integrations, Agentic Workflows, RAG Pipelines, Prompt Engineering');
-  }
-
-  if (analysis.hasAzure || analysis.hasMlflow || analysis.hasStreamlit) {
-    skillsLines.push(`- **Cloud & Tooling:** ${analysis.hasAzure ? 'Cloud Infrastructure (AWS/Azure), ' : ''}Docker, Agile/Scrum Methodologies`);
-  }
-
-  let output = originalResume;
-
-  // 1. Replace or Inject Summary
-  if (/##?\s*PROFESSIONAL\s+SUMMARY/i.test(output)) {
-    output = output.replace(
-      /(##?\s*PROFESSIONAL\s+SUMMARY\s*\n+)([\s\S]*?)(?=\n\s*(?:##|\*\*|CORE|TECHNICAL))/i,
-      `$1${tailoredSummary}\n\n`
-    );
-  } else if (/PROFESSIONAL\s+SUMMARY/i.test(output)) {
-    output = output.replace(
-      /(PROFESSIONAL\s+SUMMARY\s*\n+)([\s\S]*?)(?=\n\s*(?:CORE\s+SKILLS|TECHNICAL|PROFESSIONAL\s+EXPERIENCE|EXPERIENCE))/i,
-      `## PROFESSIONAL SUMMARY\n${tailoredSummary}\n\n`
-    );
-  } else {
-    if (/(?:##?\s*)?(?:CORE\s+SKILLS|TECHNICAL\s+&?\s*CORE\s+SKILLS)/i.test(output)) {
-      output = output.replace(
-        /(?:##?\s*)?(CORE\s+SKILLS|TECHNICAL\s+&?\s*CORE\s+SKILLS)/i,
-        `## PROFESSIONAL SUMMARY\n${tailoredSummary}\n\n## $1`
-      );
-    } else {
-      output = `## PROFESSIONAL SUMMARY\n${tailoredSummary}\n\n` + output;
-    }
-  }
-
-  // 2. Enhance or Add Skills
-  if (/##?\s*(?:TECHNICAL\s+&?\s*)?(?:CORE\s+)?SKILLS/i.test(output)) {
-    output = output.replace(
-      /(##?\s*(?:TECHNICAL\s+&?\s*)?(?:CORE\s+)?SKILLS\s*\n+)([\s\S]*?)(?=\n\s*(?:##|\*\*|PROFESSIONAL\s+EXPERIENCE|EXPERIENCE))/i,
-      `$1${skillsLines.slice(1).join('\n')}\n\n`
-    );
-  } else if (/(?:CORE\s+SKILLS|TECHNICAL\s+SKILLS)/i.test(output)) {
-    output = output.replace(
-      /((?:CORE\s+SKILLS|TECHNICAL\s+SKILLS)\s*\n+)([\s\S]*?)(?=\n\s*(?:PROFESSIONAL\s+EXPERIENCE|EXPERIENCE))/i,
-      `## TECHNICAL & CORE SKILLS\n${skillsLines.slice(1).join('\n')}\n\n`
-    );
-  }
-
-  return output;
+  // Never overwrite or fabricate summary, role, or skills.
+  // Preserves candidate's authentic uploaded resume text exactly as provided.
+  return originalResume;
 }
 
 // Deterministic Smart ATS Tailoring Engine (Zero-Hallucination Fallback)
@@ -785,108 +719,8 @@ function parseResumeTextHeuristically(rawText: string, fileName?: string) {
     return regex.test(rawText);
   });
 
-  // 7. Clean Structured ATS Markdown Representation
-  let baseResumeText = '';
-  if (rawText.includes('#') && rawText.includes('##')) {
-    // Already has Markdown headings — preserve and normalize
-    baseResumeText = rawText;
-  } else {
-    // Parse unstructured text into standard ATS Markdown structure
-    const contactParts = [email, phone, `${detectedLocation}, ${detectedCountry}`].filter(Boolean);
-    const contactLine = contactParts.join(' | ');
-
-    // Extract potential sections from lines
-    const summaryLines: string[] = [];
-    const experienceLines: string[] = [];
-    const educationLines: string[] = [];
-    const projectLines: string[] = [];
-
-    let currentSection = 'summary';
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line) continue;
-
-      // Check section header triggers
-      const lower = line.toLowerCase();
-      if (/^(?:professional\s+)?summary|profile|about\s+me/i.test(lower) && line.length < 35) {
-        currentSection = 'summary';
-        continue;
-      }
-      if (/^(?:technical\s+|core\s+)?skills|competencies/i.test(lower) && line.length < 35) {
-        currentSection = 'skills';
-        continue;
-      }
-      if (/^(?:professional\s+|work\s+)?experience|employment|work\s+history/i.test(lower) && line.length < 40) {
-        currentSection = 'experience';
-        continue;
-      }
-      if (/^education|academic/i.test(lower) && line.length < 30) {
-        currentSection = 'education';
-        continue;
-      }
-      if (/^projects|key\s+projects/i.test(lower) && line.length < 30) {
-        currentSection = 'projects';
-        continue;
-      }
-
-      // Route lines to appropriate sections
-      const formattedBullet = line.replace(/^[•*–-]\s*/, '').trim();
-      if (currentSection === 'summary') {
-        if (line !== name && !line.includes('@')) {
-          summaryLines.push(line);
-        }
-      } else if (currentSection === 'experience') {
-        if (line.includes('|') || /^(19|20)\d{2}/.test(line) || /(present|current)/i.test(line)) {
-          experienceLines.push(`\n### ${line}`);
-        } else {
-          experienceLines.push(`- ${formattedBullet}`);
-        }
-      } else if (currentSection === 'education') {
-        educationLines.push(line.includes('|') ? `\n### ${line}` : `- ${formattedBullet}`);
-      } else if (currentSection === 'projects') {
-        projectLines.push(line.includes('|') ? `\n### ${line}` : `- ${formattedBullet}`);
-      }
-    }
-
-    const mdSections: string[] = [
-      `# ${name.toUpperCase()}`,
-      contactLine,
-      '\n## PROFESSIONAL SUMMARY',
-      summaryLines.length > 0
-        ? summaryLines.join(' ')
-        : `Accomplished ${detectedRole} with proven expertise in developing robust, scalable applications and delivering high-value solutions in ${detectedLocation}.`,
-      '\n## TECHNICAL & CORE SKILLS',
-      `- **Core Competencies:** ${detectedSkills.length > 0 ? detectedSkills.join(', ') : 'Software Development, System Design, REST APIs, Git, Agile'}`,
-    ];
-
-    if (experienceLines.length > 0) {
-      mdSections.push('\n## PROFESSIONAL EXPERIENCE', experienceLines.join('\n'));
-    } else {
-      mdSections.push(
-        '\n## PROFESSIONAL EXPERIENCE',
-        `### ${detectedRole} | Enterprise Technology`,
-        '*2022 – Present | ' + detectedLocation + '*',
-        '- Spearheaded design and implementation of modern applications, improving system reliability and performance.',
-        '- Collaborated across engineering and product teams to deliver high-impact features in Agile sprint cycles.'
-      );
-    }
-
-    if (educationLines.length > 0) {
-      mdSections.push('\n## EDUCATION', educationLines.join('\n'));
-    } else {
-      mdSections.push(
-        '\n## EDUCATION',
-        '### Bachelor of Science in Computer Science or Related Field',
-        '*Accredited University*'
-      );
-    }
-
-    if (projectLines.length > 0) {
-      mdSections.push('\n## PROJECTS', projectLines.join('\n'));
-    }
-
-    baseResumeText = mdSections.join('\n');
-  }
+  // Always preserve the user's authentic uploaded resume text without altering or synthesizing content
+  const baseResumeText = rawText.trim();
 
   return {
     name: name !== 'Candidate' ? name : (email ? email.split('@')[0] : 'Candidate Name'),
@@ -895,8 +729,8 @@ function parseResumeTextHeuristically(rawText: string, fileName?: string) {
     location: detectedLocation,
     country: detectedCountry,
     jobRole: detectedRole,
-    skills: detectedSkills.length > 0 ? detectedSkills : ['React', 'TypeScript', 'JavaScript', 'CSS3', 'HTML5'],
-    summary: `Experienced ${detectedRole} specializing in building modern web applications and scalable solutions in ${detectedLocation}.`,
+    skills: detectedSkills.length > 0 ? detectedSkills : ['Software Engineering', 'System Design', 'REST APIs'],
+    summary: `Experienced ${detectedRole} with background in software development and production systems in ${detectedLocation}.`,
     baseResumeText: baseResumeText
   };
 }

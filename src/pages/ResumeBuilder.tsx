@@ -32,14 +32,38 @@ import {
 export const ResumeBuilder: React.FC = () => {
   const { user, profile } = useAuth();
 
-  // Three Core Inputs
-  const [companyName, setCompanyName] = useState('');
-  const [jobDescription, setJobDescription] = useState('');
-  const [resumeText, setResumeText] = useState('');
+  // Three Core Inputs (Persisted in localStorage across page reloads)
+  const [companyName, setCompanyName] = useState(() => localStorage.getItem('portal_builder_company') || '');
+  const [jobDescription, setJobDescription] = useState(() => localStorage.getItem('portal_builder_jd') || '');
+  const [resumeText, setResumeText] = useState(() => {
+    return (
+      localStorage.getItem('portal_builder_resume_text') ||
+      localStorage.getItem('portal_base_resume_text') ||
+      ''
+    );
+  });
 
   // Source Tracking
-  const [isUsingProfileResume, setIsUsingProfileResume] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isUsingProfileResume, setIsUsingProfileResume] = useState(true);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(() => localStorage.getItem('portal_builder_file_name'));
+
+  // Sync state to localStorage so reloads never lose progress
+  useEffect(() => {
+    if (companyName) localStorage.setItem('portal_builder_company', companyName);
+    else localStorage.removeItem('portal_builder_company');
+  }, [companyName]);
+
+  useEffect(() => {
+    if (jobDescription) localStorage.setItem('portal_builder_jd', jobDescription);
+    else localStorage.removeItem('portal_builder_jd');
+  }, [jobDescription]);
+
+  useEffect(() => {
+    if (resumeText) {
+      localStorage.setItem('portal_builder_resume_text', resumeText);
+      localStorage.setItem('portal_base_resume_text', resumeText);
+    }
+  }, [resumeText]);
 
   // Tailoring State
   const [isTailoring, setIsTailoring] = useState(false);
@@ -66,9 +90,12 @@ export const ResumeBuilder: React.FC = () => {
 
   // Pre-populate with profile resume on mount or when profile loads
   useEffect(() => {
-    if (profile?.baseResumeText && !uploadedFileName) {
-      setResumeText(profile.baseResumeText);
-      setIsUsingProfileResume(true);
+    if (profile?.baseResumeText) {
+      if (!uploadedFileName) {
+        setResumeText(profile.baseResumeText);
+        setIsUsingProfileResume(true);
+      }
+      localStorage.setItem('portal_base_resume_text', profile.baseResumeText);
     }
   }, [profile?.baseResumeText, uploadedFileName]);
 
@@ -99,6 +126,7 @@ export const ResumeBuilder: React.FC = () => {
       setIsUploading(true);
       setError(null);
       setUploadedFileName(file.name);
+      localStorage.setItem('portal_builder_file_name', file.name);
       setIsUsingProfileResume(false);
 
       if (file.type === 'text/plain') {
@@ -226,9 +254,10 @@ export const ResumeBuilder: React.FC = () => {
       setResumeText(profile.baseResumeText);
       setIsUsingProfileResume(true);
       setUploadedFileName(null);
+      localStorage.removeItem('portal_builder_file_name');
       setSuccessMessage('Restored resume from your profile.');
     } else {
-      setError('No base resume found in your profile. Please paste your resume text.');
+      setError('No base resume found in your profile. Please upload your resume in Profile settings.');
     }
   };
 
@@ -270,6 +299,9 @@ export const ResumeBuilder: React.FC = () => {
   const handleStartNewResume = () => {
     setCompanyName('');
     setJobDescription('');
+    localStorage.removeItem('portal_builder_company');
+    localStorage.removeItem('portal_builder_jd');
+    localStorage.removeItem('portal_builder_file_name');
     if (profile?.baseResumeText) {
       setResumeText(profile.baseResumeText);
       setIsUsingProfileResume(true);

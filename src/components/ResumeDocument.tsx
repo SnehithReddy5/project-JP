@@ -12,6 +12,139 @@ interface ResumeDocumentProps {
   onMarkdownChange?: (newMd: string) => void;
 }
 
+export function normalizeResumeMarkdown(rawText: string): string {
+  if (!rawText || !rawText.trim()) return '';
+  const text = rawText.trim();
+
+  // If already formatted with standard Markdown headers, normalize bullets and return
+  if (text.includes('## ') && text.includes('# ')) {
+    return text.replace(/^[•·]\s*/gm, '- ');
+  }
+
+  // Parse plain-text or unstructured resume into standard ATS Markdown
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return text;
+
+  const mdOutput: string[] = [];
+  let candidateName = '';
+  const contactParts: string[] = [];
+  let currentSection = '';
+  let inContactBlock = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // 1. Candidate Name (first line)
+    if (!candidateName && i === 0) {
+      candidateName = line.replace(/^[#*\s•-]+/, '').trim();
+      mdOutput.push(`# ${candidateName}`);
+      continue;
+    }
+
+    // 2. Contact header section trigger
+    if (/^contact\s*$/i.test(line)) {
+      inContactBlock = true;
+      continue;
+    }
+
+    // Contact items
+    if (
+      inContactBlock ||
+      line.includes('@') ||
+      line.toLowerCase().startsWith('phone:') ||
+      line.toLowerCase().startsWith('email:') ||
+      line.toLowerCase().startsWith('linkedin:') ||
+      line.toLowerCase().startsWith('location:')
+    ) {
+      if (
+        line.includes('@') ||
+        line.toLowerCase().includes('linkedin.com') ||
+        /\+?\d{2,4}[-\s]?\d{6,12}/.test(line) ||
+        line.toLowerCase().startsWith('location:')
+      ) {
+        const cleaned = line
+          .replace(/^[•·*-]\s*/, '')
+          .replace(/^(?:Phone|Email|LinkedIn|Location):\s*/i, '')
+          .trim();
+        if (cleaned) contactParts.push(cleaned);
+        continue;
+      }
+    }
+
+    // Section headings detection
+    const sectionMatch = line.match(
+      /^(?:(?:##\s*)?(Professional\s+Summary|Summary|Profile|Core\s+Skills|Technical\s+Skills|Technical\s+&\s+Core\s+Skills|Skills|Professional\s+Experience|Experience|Work\s+History|Work\s+Experience|Education|Academic\s+Background|Certifications\s*&\s*Achievements|Certifications|Key\s+Achievements|Projects|Key\s+Projects))(?:\s*:)?$/i
+    );
+
+    if (sectionMatch) {
+      inContactBlock = false;
+      if (contactParts.length > 0 && mdOutput.length === 1) {
+        mdOutput.push(contactParts.join(' | '));
+        contactParts.length = 0;
+      }
+      currentSection = sectionMatch[1].toUpperCase();
+      mdOutput.push(`\n## ${currentSection}`);
+      continue;
+    }
+
+    // Flush contact info if section not triggered yet
+    if (contactParts.length > 0 && mdOutput.length === 1 && !inContactBlock) {
+      mdOutput.push(contactParts.join(' | '));
+      contactParts.length = 0;
+    }
+
+    // 3. Job Title and Company under Experience
+    if (currentSection.includes('EXPERIENCE') || currentSection.includes('WORK')) {
+      const isBullet = /^[•·*-]/.test(line);
+      if (!isBullet) {
+        const nextLine = lines[i + 1] || '';
+        const hasDateOrLocation =
+          /(?:present|\d{4}|bengaluru|bangalore|india|usa|remote|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(nextLine) &&
+          !/^[•·*-]/.test(nextLine);
+
+        if (hasDateOrLocation) {
+          const compParts = nextLine.split(/—|-|–/).map(s => s.trim());
+          const compName = compParts[0] || nextLine;
+          const dateLocation = compParts.slice(1).join(' — ') || '';
+
+          mdOutput.push(`\n### ${line} | ${compName}`);
+          if (dateLocation) {
+            mdOutput.push(`*${dateLocation}*`);
+          }
+          i++; // skip next line
+          continue;
+        } else if (line.includes('|')) {
+          mdOutput.push(`\n### ${line}`);
+          continue;
+        }
+      }
+    }
+
+    // 4. Bullet points
+    if (/^[•·*-]/.test(line)) {
+      const bulletText = line.replace(/^[•·*-]\s*/, '').trim();
+      if (bulletText.includes(':') && bulletText.indexOf(':') < 45) {
+        const colonIdx = bulletText.indexOf(':');
+        const category = bulletText.slice(0, colonIdx).trim();
+        const rest = bulletText.slice(colonIdx + 1).trim();
+        mdOutput.push(`- **${category}:** ${rest}`);
+      } else {
+        mdOutput.push(`- ${bulletText}`);
+      }
+      continue;
+    }
+
+    // 5. Default paragraphs
+    mdOutput.push(line);
+  }
+
+  if (contactParts.length > 0 && mdOutput.length === 1) {
+    mdOutput.push(contactParts.join(' | '));
+  }
+
+  return mdOutput.join('\n');
+}
+
 export const ResumeDocument: React.FC<ResumeDocumentProps> = ({
   markdown,
   theme = 'executive',
@@ -19,6 +152,8 @@ export const ResumeDocument: React.FC<ResumeDocumentProps> = ({
   isEditable = false,
   onMarkdownChange,
 }) => {
+  const displayMarkdown = React.useMemo(() => normalizeResumeMarkdown(markdown), [markdown]);
+
   if (isEditable) {
     return (
       <div className="w-full max-w-[800px] mx-auto bg-white rounded-xl border border-neutral-200 shadow-sm p-6 space-y-3">
@@ -158,7 +293,7 @@ export const ResumeDocument: React.FC<ResumeDocumentProps> = ({
             ),
           }}
         >
-          {markdown}
+          {displayMarkdown}
         </Markdown>
       </div>
     </div>

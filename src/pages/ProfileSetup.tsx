@@ -136,7 +136,12 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
         if (extracted.location?.trim()) setLocation(extracted.location.trim());
         if (extracted.country && COUNTRIES.includes(extracted.country)) setCountry(extracted.country);
         if (extracted.jobRole?.trim()) setJobRole(extracted.jobRole.trim());
-        if (extracted.baseResumeText?.trim()) setBaseResumeText(extracted.baseResumeText.trim());
+        if (extracted.baseResumeText?.trim()) {
+          const cleanTxt = extracted.baseResumeText.trim();
+          setBaseResumeText(cleanTxt);
+          localStorage.setItem('portal_base_resume_text', cleanTxt);
+          localStorage.setItem('portal_builder_resume_text', cleanTxt);
+        }
 
         setFileFeedback(null);
         setExtractedNotice(
@@ -197,6 +202,9 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
         customModelName: isCustom ? customModelName.trim() : undefined,
         customModelProvider: selectedModel.provider,
       } as any);
+
+      localStorage.setItem('portal_base_resume_text', baseResumeText.trim());
+      localStorage.setItem('portal_builder_resume_text', baseResumeText.trim());
 
       await refreshProfile();
       onCompleted();

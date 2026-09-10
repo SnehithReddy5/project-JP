@@ -28,9 +28,29 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
+const getInitialCachedProfile = (): UserProfile | null => {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('portal_user_profile_')) {
+        const item = localStorage.getItem(key);
+        if (item) {
+          const parsed = JSON.parse(item);
+          if (parsed && (parsed.id || parsed.baseResumeText)) {
+            return parsed;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Initial profile cache read notice:', e);
+  }
+  return null;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(getInitialCachedProfile);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -72,7 +92,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Fetch user profile for authorized candidate
       const prof = await userService.getUserProfile(fbUser.uid);
-      setProfile(prof);
+      if (prof) {
+        setProfile(prof);
+      }
     } catch (err) {
       console.error('Error verifying authorization or profile:', err);
       await authService.signOut();
