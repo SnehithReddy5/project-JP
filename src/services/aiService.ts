@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 
 export interface TailorResumeResult {
   markdown: string;
@@ -102,39 +102,49 @@ export const aiService = {
       throw new Error('Resume preview element not found');
     }
 
-    const canvas = await html2canvas(element, {
-      scale: 2.5,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-    });
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2.5,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
 
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
 
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    let heightLeft = imgHeight;
-    let position = 0;
+      let heightLeft = imgHeight;
+      let position = 0;
 
-    const imgData = canvas.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft > 5) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
+      const imgData = canvas.toDataURL('image/png');
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
-    }
 
-    pdf.save(`${filename.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
+      while (heightLeft > 5) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`${filename.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
+    } catch (renderError: any) {
+      console.error('PDF generation error:', renderError);
+      throw new Error(
+        renderError?.message ||
+          'Failed to render PDF canvas. Please try again or use the browser Print button to save as PDF.'
+      );
+    }
   },
 
   // Native browser print to PDF

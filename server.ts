@@ -593,61 +593,33 @@ function generateInPlaceResumeFallback(
   const analysis = analyzeJobDescription(jobDescription, company);
 
   // 1. Build targeted Professional Summary
-  const tailoredSummary = `Results-oriented ${analysis.role} with 4+ years of proven experience building high-throughput production systems, scalable data pipelines, and intelligent applications for Fortune 500 clients.${
-    analysis.hasPython || analysis.hasSql ? ' Proficient in Python, advanced SQL, and distributed data processing.' : ''
+  const tailoredSummary = `Results-driven ${analysis.role} with proven hands-on experience designing, developing, and deploying robust software and data applications aligned with ${company}'s technical priorities.${
+    analysis.hasPython || analysis.hasSql ? ' Strong foundation in Python, SQL data querying, and scalable application architecture.' : ''
   }${
-    analysis.hasTimeSeries || analysis.hasMl ? ' Hands-on background applying statistical modeling, time series forecasting (ARIMA/Prophet), and machine learning to business-critical operations.' : ''
+    analysis.hasTimeSeries || analysis.hasMl ? ' Proven background applying statistical modeling, machine learning, and data analytics to optimize key business workflows.' : ''
   }${
-    analysis.hasLlm ? ' Experienced in LLM application architecture, agentic tool-use frameworks (LangChain), and RAG vector search pipelines.' : ''
-  } Proven track record delivering robust, production-ready solutions from architecture through deployment and monitoring.`;
+    analysis.hasLlm ? ' Experienced in modern LLM patterns, prompt engineering, and intelligent workflow automation.' : ''
+  } Committed to engineering best practices, zero-defect delivery, and collaborative cross-functional execution.`;
 
   // 2. Build aligned Skills Section
   const skillsLines: string[] = ['## TECHNICAL & CORE SKILLS'];
   if (analysis.hasPython || analysis.hasSql || analysis.hasSpark) {
-    skillsLines.push(`- **Core Programming & Data:** Python (NumPy, Pandas), SQL, ${analysis.hasSpark ? 'Spark, Snowflake, ' : ''}PostgreSQL, RESTful APIs, Node.js, Git, GitHub`);
+    skillsLines.push(`- **Core Programming & Data:** Python, SQL, ${analysis.hasSpark ? 'Spark, Distributed Systems, ' : ''}REST APIs, Git, CI/CD`);
   } else {
-    skillsLines.push('- **Core Programming & Systems:** Python, SQL, Java, Node.js, RESTful APIs, PostgreSQL, Git, CI/CD');
+    skillsLines.push('- **Core Programming & Systems:** Python, SQL, TypeScript/JavaScript, REST APIs, Git, CI/CD');
   }
 
   if (analysis.hasMl || analysis.hasTimeSeries || analysis.hasOptimization) {
-    skillsLines.push(`- **Machine Learning & Statistical Modeling:** ${analysis.hasTimeSeries ? 'Time Series Forecasting (ARIMA, Prophet), ' : ''}${analysis.hasOptimization ? 'Optimization Modeling (Linear Programming), ' : ''}Classification, Regression, Clustering, Feature Engineering`);
+    skillsLines.push(`- **Machine Learning & Analytics:** ${analysis.hasTimeSeries ? 'Time Series Analysis, ' : ''}${analysis.hasOptimization ? 'Process Optimization, ' : ''}Predictive Modeling, Feature Engineering`);
   }
 
   if (analysis.hasLlm) {
-    skillsLines.push('- **LLM & AI Agent Development:** Agentic Workflows, LangChain, LlamaIndex, RAG Pipelines, Vector Indexing (Azure AI Search), Prompt Engineering, Tool-Use Orchestration');
+    skillsLines.push('- **AI & Modern Technologies:** LLM Integrations, Agentic Workflows, RAG Pipelines, Prompt Engineering');
   }
 
   if (analysis.hasAzure || analysis.hasMlflow || analysis.hasStreamlit) {
-    skillsLines.push(`- **Cloud & Production Delivery:** ${analysis.hasAzure ? 'Azure AI Studio, Azure OpenAI, Azure ML, ' : ''}${analysis.hasMlflow ? 'MLflow (Model Versioning), ' : ''}${analysis.hasStreamlit ? 'Streamlit / Gradio Demos, ' : ''}CI/CD, Agile/Scrum`);
+    skillsLines.push(`- **Cloud & Tooling:** ${analysis.hasAzure ? 'Cloud Infrastructure (AWS/Azure), ' : ''}Docker, Agile/Scrum Methodologies`);
   }
-
-  // 3. Tailor Tiger Analytics experience bullets
-  const tigerBullets = [
-    analysis.hasPython || analysis.hasSpark
-      ? 'Architected and deployed high-throughput data processing services and production pipelines using Python and SQL for Fortune 500 retail clients (PepsiCo, Mars).'
-      : 'Architected full-stack retail and promotion platforms for Fortune 500 clients (PepsiCo, Mars) using scalable backend microservices.',
-    analysis.hasTimeSeries || analysis.hasMl
-      ? 'Engineered predictive promotion analytics and demand estimation logic, applying regression and time series algorithms to optimize dynamic discount allocation.'
-      : 'Developed dynamic discount engines and loyalty integrations, designing PostgreSQL schemas for high-concurrency retail transactions.',
-    analysis.hasLlm
-      ? 'Implemented agentic AI patterns and RAG document retrieval pipelines using LangChain and LLM endpoints for multi-step retail workflow automation.'
-      : 'Implemented enterprise-grade authentication with Keycloak supporting OAuth 2.0 and OpenID Connect for multi-tenant retail operations.',
-    'Optimized database queries and schemas in PostgreSQL for large-scale transaction processing; maintained code review and version control with Git.',
-    'Collaborated with cross-functional data science and engineering teams in Agile sprints, ensuring strict test coverage, validation, and production monitoring.',
-  ];
-
-  // 4. Tailor Manhattan Associates experience bullets
-  const manhattanBullets = [
-    'Designed and delivered core transaction and Self-Checkout capabilities for Manhattan Active POS with accessibility, multi-language support, and resilient architecture.',
-    'Architected offline-first data sync feature for Harbor Freight with client-side indexing; launched with zero production defects and 100% test automation coverage.',
-    analysis.hasPython
-      ? 'Engineered automated validation frameworks in Python and JavaScript, reducing QA cycle time by 87% (from 2 days to 3 hours).'
-      : 'Developed end-to-end test automation framework using Appium and JavaScript, reducing manual QA effort by 87%.',
-    analysis.hasStreamlit
-      ? 'Prototyped interactive data exploration dashboards with Streamlit and built modular UI components with Tailwind CSS for retail transactions.'
-      : 'Built modular, reusable UI components and integrated RESTful APIs for real-time inventory synchronization and order management.',
-    'Collaborated in Agile sprints with engineers and product leads to deliver reliable, high-performance retail solutions for Fortune 500 clients.',
-  ];
 
   let output = originalResume;
 
@@ -663,7 +635,6 @@ function generateInPlaceResumeFallback(
       `## PROFESSIONAL SUMMARY\n${tailoredSummary}\n\n`
     );
   } else {
-    // Inject at the beginning or before Core Skills
     if (/(?:##?\s*)?(?:CORE\s+SKILLS|TECHNICAL\s+&?\s*CORE\s+SKILLS)/i.test(output)) {
       output = output.replace(
         /(?:##?\s*)?(CORE\s+SKILLS|TECHNICAL\s+&?\s*CORE\s+SKILLS)/i,
@@ -674,7 +645,7 @@ function generateInPlaceResumeFallback(
     }
   }
 
-  // 2. Replace Core Skills if exists
+  // 2. Enhance or Add Skills
   if (/##?\s*(?:TECHNICAL\s+&?\s*)?(?:CORE\s+)?SKILLS/i.test(output)) {
     output = output.replace(
       /(##?\s*(?:TECHNICAL\s+&?\s*)?(?:CORE\s+)?SKILLS\s*\n+)([\s\S]*?)(?=\n\s*(?:##|\*\*|PROFESSIONAL\s+EXPERIENCE|EXPERIENCE))/i,
@@ -683,24 +654,8 @@ function generateInPlaceResumeFallback(
   } else if (/(?:CORE\s+SKILLS|TECHNICAL\s+SKILLS)/i.test(output)) {
     output = output.replace(
       /((?:CORE\s+SKILLS|TECHNICAL\s+SKILLS)\s*\n+)([\s\S]*?)(?=\n\s*(?:PROFESSIONAL\s+EXPERIENCE|EXPERIENCE))/i,
-      `## Core Skills\n${skillsLines.slice(1).join('\n')}\n\n`
+      `## TECHNICAL & CORE SKILLS\n${skillsLines.slice(1).join('\n')}\n\n`
     );
-  }
-
-  // 3. Replace Tiger Analytics Experience bullets (handles plain text and markdown headers)
-  const tigerRegex = /(Tiger\s*Analytics[^\n]*\n+)([\s\S]*?)(?=(?:\n+[^\n]*(?:Software Engineer|Manhattan\s*Associates)|##?\s*EDUCATION|EDUCATION|$))/i;
-  if (tigerRegex.test(output)) {
-    output = output.replace(tigerRegex, (match, header) => {
-      return `${header}${tigerBullets.map(b => `- ${b}`).join('\n')}\n\n`;
-    });
-  }
-
-  // 4. Replace Manhattan Associates Experience bullets (handles plain text and markdown headers)
-  const manhattanRegex = /(Manhattan\s*Associates[^\n]*\n+)([\s\S]*?)(?=(?:\n+##?\s*EDUCATION|\n+EDUCATION|\n+##?\s*CERTIFICATIONS|\n+CERTIFICATIONS|$))/i;
-  if (manhattanRegex.test(output)) {
-    output = output.replace(manhattanRegex, (match, header) => {
-      return `${header}${manhattanBullets.map(b => `- ${b}`).join('\n')}\n\n`;
-    });
   }
 
   return output;
@@ -830,10 +785,107 @@ function parseResumeTextHeuristically(rawText: string, fileName?: string) {
     return regex.test(rawText);
   });
 
-  // 7. Clean Markdown Representation
-  let baseResumeText = rawText;
-  if (!rawText.startsWith('#')) {
-    baseResumeText = `# ${name.toUpperCase()}\n${email ? email + ' | ' : ''}${phone ? phone + ' | ' : ''}${detectedLocation}, ${detectedCountry}\n\n## PROFESSIONAL SUMMARY\nAccomplished ${detectedRole} with proven expertise in developing robust, scalable applications and delivering high-value solutions.\n\n## CORE SKILLS\n${detectedSkills.length > 0 ? detectedSkills.join(', ') : 'React, TypeScript, JavaScript, HTML5, CSS3, REST APIs'}\n\n## EXPERIENCE & BACKGROUND\n${rawText.slice(0, 3000)}`;
+  // 7. Clean Structured ATS Markdown Representation
+  let baseResumeText = '';
+  if (rawText.includes('#') && rawText.includes('##')) {
+    // Already has Markdown headings — preserve and normalize
+    baseResumeText = rawText;
+  } else {
+    // Parse unstructured text into standard ATS Markdown structure
+    const contactParts = [email, phone, `${detectedLocation}, ${detectedCountry}`].filter(Boolean);
+    const contactLine = contactParts.join(' | ');
+
+    // Extract potential sections from lines
+    const summaryLines: string[] = [];
+    const experienceLines: string[] = [];
+    const educationLines: string[] = [];
+    const projectLines: string[] = [];
+
+    let currentSection = 'summary';
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      // Check section header triggers
+      const lower = line.toLowerCase();
+      if (/^(?:professional\s+)?summary|profile|about\s+me/i.test(lower) && line.length < 35) {
+        currentSection = 'summary';
+        continue;
+      }
+      if (/^(?:technical\s+|core\s+)?skills|competencies/i.test(lower) && line.length < 35) {
+        currentSection = 'skills';
+        continue;
+      }
+      if (/^(?:professional\s+|work\s+)?experience|employment|work\s+history/i.test(lower) && line.length < 40) {
+        currentSection = 'experience';
+        continue;
+      }
+      if (/^education|academic/i.test(lower) && line.length < 30) {
+        currentSection = 'education';
+        continue;
+      }
+      if (/^projects|key\s+projects/i.test(lower) && line.length < 30) {
+        currentSection = 'projects';
+        continue;
+      }
+
+      // Route lines to appropriate sections
+      const formattedBullet = line.replace(/^[•*–-]\s*/, '').trim();
+      if (currentSection === 'summary') {
+        if (line !== name && !line.includes('@')) {
+          summaryLines.push(line);
+        }
+      } else if (currentSection === 'experience') {
+        if (line.includes('|') || /^(19|20)\d{2}/.test(line) || /(present|current)/i.test(line)) {
+          experienceLines.push(`\n### ${line}`);
+        } else {
+          experienceLines.push(`- ${formattedBullet}`);
+        }
+      } else if (currentSection === 'education') {
+        educationLines.push(line.includes('|') ? `\n### ${line}` : `- ${formattedBullet}`);
+      } else if (currentSection === 'projects') {
+        projectLines.push(line.includes('|') ? `\n### ${line}` : `- ${formattedBullet}`);
+      }
+    }
+
+    const mdSections: string[] = [
+      `# ${name.toUpperCase()}`,
+      contactLine,
+      '\n## PROFESSIONAL SUMMARY',
+      summaryLines.length > 0
+        ? summaryLines.join(' ')
+        : `Accomplished ${detectedRole} with proven expertise in developing robust, scalable applications and delivering high-value solutions in ${detectedLocation}.`,
+      '\n## TECHNICAL & CORE SKILLS',
+      `- **Core Competencies:** ${detectedSkills.length > 0 ? detectedSkills.join(', ') : 'Software Development, System Design, REST APIs, Git, Agile'}`,
+    ];
+
+    if (experienceLines.length > 0) {
+      mdSections.push('\n## PROFESSIONAL EXPERIENCE', experienceLines.join('\n'));
+    } else {
+      mdSections.push(
+        '\n## PROFESSIONAL EXPERIENCE',
+        `### ${detectedRole} | Enterprise Technology`,
+        '*2022 – Present | ' + detectedLocation + '*',
+        '- Spearheaded design and implementation of modern applications, improving system reliability and performance.',
+        '- Collaborated across engineering and product teams to deliver high-impact features in Agile sprint cycles.'
+      );
+    }
+
+    if (educationLines.length > 0) {
+      mdSections.push('\n## EDUCATION', educationLines.join('\n'));
+    } else {
+      mdSections.push(
+        '\n## EDUCATION',
+        '### Bachelor of Science in Computer Science or Related Field',
+        '*Accredited University*'
+      );
+    }
+
+    if (projectLines.length > 0) {
+      mdSections.push('\n## PROJECTS', projectLines.join('\n'));
+    }
+
+    baseResumeText = mdSections.join('\n');
   }
 
   return {

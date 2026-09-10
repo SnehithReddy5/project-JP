@@ -164,7 +164,10 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
     if (!phone.trim()) { setError('Please provide your phone number.'); return; }
     if (!location.trim()) { setError('Please select or enter your location city.'); return; }
     if (!jobRole.trim()) { setError('Please specify your target job role.'); return; }
-    if (!baseResumeText.trim()) { setError('Please upload or provide your base resume details.'); return; }
+    if (!baseResumeText.trim()) {
+      setError('Uploading your resume is mandatory. Please upload your resume file (PDF, TXT, DOCX) to complete your profile.');
+      return;
+    }
     if (selectedModel.requiresKey && !customApiKey.trim() && !isCustom) {
       setError(`An API key is required for ${selectedModel.label}. Please enter your API key below.`);
       return;
@@ -361,14 +364,25 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
             </div>
           </div>
 
-          {/* Base Resume */}
+          {/* Base Resume — MANDATORY */}
           <div className="border-t border-neutral-100 pt-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">Base Resume</h2>
-              <span className="text-xs text-neutral-500">Kept intact as your source of truth</span>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider">
+                  Resume Upload
+                </h2>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
+                  Mandatory *
+                </span>
+              </div>
+              <span className="text-xs text-neutral-500">Auto-reused in Resume Builder</span>
             </div>
 
-            <div className="border-2 border-dashed border-neutral-200 rounded-lg p-5 text-center hover:border-neutral-400 transition-colors bg-neutral-50/50">
+            <div className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors ${
+              baseResumeText.trim()
+                ? 'border-emerald-300 bg-emerald-50/30'
+                : 'border-neutral-300 hover:border-neutral-500 bg-neutral-50/50'
+            }`}>
               {extracting ? (
                 <div className="py-3 flex flex-col items-center justify-center space-y-2">
                   <Loader2 className="w-8 h-8 text-neutral-900 animate-spin" />
@@ -380,9 +394,11 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
               ) : (
                 <>
                   <Upload className="w-7 h-7 text-neutral-400 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-neutral-800">Upload your resume file (PDF, TXT, DOCX)</p>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    Our AI will parse and extract your profile details, contact info, and experience automatically.
+                  <p className="text-sm font-bold text-neutral-900">
+                    Upload your resume file <span className="text-red-500">*</span> (PDF, TXT, DOCX)
+                  </p>
+                  <p className="text-xs text-neutral-600 mt-1 max-w-md mx-auto">
+                    Mandatory: Uploading your resume here saves it to your profile so you <strong>never need to upload it every time</strong> in the Resume Builder.
                   </p>
                   <input
                     id="resume-file-input"
@@ -390,6 +406,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                     accept=".pdf,.txt,.md,.docx,.doc"
                     onChange={handleFileUpload}
                     disabled={extracting}
+                    required={!baseResumeText.trim()}
                     className="mt-3 text-xs text-neutral-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-neutral-900 file:text-white hover:file:bg-neutral-800 cursor-pointer disabled:opacity-50"
                   />
                 </>
@@ -400,6 +417,13 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
                   <CheckCircle2 className="w-3.5 h-3.5 text-neutral-500" />
                   {fileFeedback}
                 </p>
+              )}
+
+              {baseResumeText.trim() && !extracting && !fileFeedback && (
+                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Resume Attached: {resumeFileName || 'Profile Resume'}</span>
+                </div>
               )}
             </div>
 
@@ -415,14 +439,15 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onCompleted, isEditi
 
             <div>
               <label className="block text-xs font-medium text-neutral-700 mb-1">
-                Base Resume Content (Used by AI Tailoring)
+                Base Resume Content (Used by AI Tailoring) <span className="text-red-500">*</span>
               </label>
               <textarea
                 id="profile-resume-textarea"
                 rows={9}
                 value={baseResumeText}
                 onChange={e => setBaseResumeText(e.target.value)}
-                placeholder="Paste your plain text or Markdown resume here, or upload your resume file above (PDF/DOCX)..."
+                placeholder="Upload your resume above or paste your resume content here..."
+                required
                 className="w-full p-3 font-mono text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent leading-relaxed"
               />
               <p className="text-xs text-neutral-500 mt-1">

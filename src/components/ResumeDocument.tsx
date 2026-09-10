@@ -49,29 +49,29 @@ export const ResumeDocument: React.FC<ResumeDocumentProps> = ({
   const themeStyles = {
     executive: {
       fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
-      headerBorder: 'border-b-2 border-neutral-900',
+      headerBorder: 'border-b-2 border-neutral-900 pb-2 mb-3',
       sectionBorder: 'border-b border-neutral-900',
-      sectionHeading: 'text-[13px] font-bold tracking-wider uppercase text-neutral-900 mt-4 mb-2 pb-0.5',
+      sectionHeading: 'text-[12.5px] font-bold tracking-wider uppercase text-neutral-900 mt-4 mb-2 pb-0.5',
       nameHeading: 'text-2xl font-bold tracking-tight uppercase text-neutral-950 text-center',
-      contactLine: 'text-center text-xs text-neutral-700 tracking-normal pb-3 mb-2',
+      contactLine: 'text-center text-xs text-neutral-700 tracking-normal pb-2 mb-2',
       bulletSpacing: 'my-1',
     },
     modern: {
-      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      headerBorder: 'border-b-2 border-neutral-900',
+      fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      headerBorder: 'border-b-2 border-neutral-900 pb-2 mb-3',
       sectionBorder: 'border-b border-neutral-300',
       sectionHeading: 'text-[12px] font-bold tracking-widest uppercase text-neutral-900 mt-4 mb-2 pb-1',
       nameHeading: 'text-2xl font-bold tracking-tight uppercase text-neutral-950 text-left',
-      contactLine: 'text-left text-xs text-neutral-600 pb-3 mb-2',
+      contactLine: 'text-left text-xs text-neutral-600 pb-2 mb-2',
       bulletSpacing: 'my-1',
     },
     minimal: {
-      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-      headerBorder: 'border-b border-neutral-400',
+      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      headerBorder: 'border-b border-neutral-400 pb-2 mb-2.5',
       sectionBorder: 'border-b border-neutral-200',
       sectionHeading: 'text-[11px] font-semibold tracking-wider uppercase text-neutral-800 mt-3 mb-1.5 pb-0.5',
       nameHeading: 'text-xl font-bold tracking-normal uppercase text-neutral-900 text-center',
-      contactLine: 'text-center text-[11px] text-neutral-600 pb-2 mb-1.5',
+      contactLine: 'text-center text-[11px] text-neutral-600 pb-1.5 mb-1.5',
       bulletSpacing: 'my-0.5',
     },
   }[theme];
@@ -79,15 +79,15 @@ export const ResumeDocument: React.FC<ResumeDocumentProps> = ({
   return (
     <div
       id={elementId}
-      style={{ fontFamily: themeStyles.fontFamily }}
-      className="bg-white text-neutral-900 w-full max-w-[800px] min-h-[1050px] p-10 sm:p-14 shadow-lg border border-neutral-200 mx-auto text-xs leading-normal print:shadow-none print:border-none print:p-0 print:max-w-none print:min-h-0"
+      style={{ fontFamily: themeStyles.fontFamily, backgroundColor: '#ffffff', color: '#111827' }}
+      className="w-full max-w-[800px] min-h-[1050px] p-8 sm:p-12 shadow-lg border border-neutral-200 mx-auto text-xs leading-normal print:shadow-none print:border-none print:p-0 print:max-w-none print:min-h-0 bg-white"
     >
       <div className="resume-content-wrapper space-y-1">
         <Markdown
           remarkPlugins={[remarkGfm]}
           components={{
             h1: ({ children }) => (
-              <h1 className={`${themeStyles.nameHeading} pt-1`}>
+              <h1 className={`${themeStyles.nameHeading} pt-1 pb-1`}>
                 {children}
               </h1>
             ),
@@ -103,27 +103,33 @@ export const ResumeDocument: React.FC<ResumeDocumentProps> = ({
                 const parts = text.split('|').map(s => s.trim());
                 return (
                   <div className="flex flex-col sm:flex-row sm:items-baseline justify-between pt-2 pb-0.5 text-xs font-bold text-neutral-900">
-                    <span>{parts[0]}</span>
+                    <span className="font-bold text-neutral-950">{parts[0]}</span>
                     <span className="font-semibold text-neutral-700 sm:text-right">
                       {parts.slice(1).join(' | ')}
                     </span>
                   </div>
                 );
               }
-              return <h3 className="pt-2 pb-0.5 text-xs font-bold text-neutral-900">{children}</h3>;
+              return <h3 className="pt-2 pb-0.5 text-xs font-bold text-neutral-950">{children}</h3>;
             },
             p: ({ children }) => {
               const text = String(children);
-              // Contact line check (email, phone, pipe)
-              if (text.includes('@') || text.includes('|') || text.includes('+')) {
+              // Strict Contact Line check: must contain email (@) and be a concise line, or explicitly contain links/location
+              const isContactLine =
+                text.length < 200 &&
+                (text.includes('@') || text.toLowerCase().includes('linkedin.com') || text.toLowerCase().includes('github.com')) &&
+                (text.includes('|') || text.includes('•') || /[\d-]{7,}/.test(text));
+
+              if (isContactLine) {
                 return (
                   <p className={`${themeStyles.contactLine} ${themeStyles.headerBorder}`}>
                     {children}
                   </p>
                 );
               }
+
               return (
-                <p className="text-neutral-800 text-[11.5px] leading-relaxed my-1 text-justify">
+                <p className="text-neutral-800 text-[11.5px] leading-relaxed my-1 text-left">
                   {children}
                 </p>
               );

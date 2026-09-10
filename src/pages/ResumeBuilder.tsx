@@ -64,13 +64,13 @@ export const ResumeBuilder: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Pre-populate with profile resume on mount
+  // Pre-populate with profile resume on mount or when profile loads
   useEffect(() => {
-    if (profile?.baseResumeText && !resumeText) {
+    if (profile?.baseResumeText && !uploadedFileName) {
       setResumeText(profile.baseResumeText);
       setIsUsingProfileResume(true);
     }
-  }, [profile]);
+  }, [profile?.baseResumeText, uploadedFileName]);
 
   // Fetch History for user
   const fetchHistory = async () => {
@@ -471,12 +471,15 @@ export const ResumeBuilder: React.FC = () => {
               />
             </div>
 
-            {/* Input 3: Resume Upload (Processed seamlessly in background) */}
+            {/* Input 3: Resume (Pre-loaded from Profile, no need to re-upload) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-neutral-800 flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5 text-neutral-600" />
-                  Candidate Resume <span className="text-red-500">*</span>
+                  Candidate Resume
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    From Profile
+                  </span>
                 </label>
 
                 <div className="flex items-center gap-2">
@@ -484,7 +487,7 @@ export const ResumeBuilder: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleResetToProfileResume}
-                      title="Switch to your base resume from Profile"
+                      title="Switch back to profile resume"
                       className="text-[11px] text-neutral-600 hover:text-neutral-900 font-medium underline flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw className="w-3 h-3" />
@@ -494,15 +497,15 @@ export const ResumeBuilder: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-[11px] text-neutral-900 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] text-neutral-600 hover:text-neutral-900 font-medium hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Upload className="w-3 h-3" />
-                    Upload File
+                    {resumeText ? 'Change File' : 'Upload File'}
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.docx,.txt"
+                    accept=".pdf,.docx,.txt,.md"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
@@ -511,18 +514,18 @@ export const ResumeBuilder: React.FC = () => {
 
               {/* Background Processing Indicator */}
               {isUploading ? (
-                <div className="p-6 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 text-center space-y-2">
+                <div className="p-5 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 text-center space-y-2">
                   <RefreshCw className="w-5 h-5 animate-spin text-neutral-700 mx-auto" />
                   <p className="text-xs font-bold text-neutral-900">Processing Resume in Background...</p>
                   <p className="text-[11px] text-neutral-500">Preparing document structure for tailoring</p>
                 </div>
               ) : resumeText ? (
-                /* Clean Attached Resume Card */
-                <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/80 hover:bg-neutral-50 transition-colors space-y-3">
+                /* Active Attached Resume Card */
+                <div className="p-4 rounded-xl border border-emerald-200/80 bg-emerald-50/20 hover:bg-emerald-50/30 transition-colors space-y-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-neutral-900 text-white flex items-center justify-center shrink-0 shadow-xs">
-                        <FileText className="w-5 h-5 text-emerald-400" />
+                      <div className="w-9 h-9 rounded-lg bg-neutral-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <FileText className="w-4 h-4 text-emerald-400" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-neutral-900 truncate">
@@ -531,9 +534,13 @@ export const ResumeBuilder: React.FC = () => {
                               ? profile?.baseResumeFileName || `${profile?.name || 'Candidate'}_Resume.pdf`
                               : 'Attached_Resume.pdf')}
                         </p>
-                        <p className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          <span>Resume Ready • Processed in background</span>
+                        <p className="text-[11px] text-emerald-700 font-medium flex items-center gap-1 mt-0.5">
+                          <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>
+                            {isUsingProfileResume
+                              ? 'Profile resume loaded automatically • No need to upload'
+                              : 'Custom document attached for this job'}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -541,56 +548,43 @@ export const ResumeBuilder: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-800 text-[11px] font-semibold transition-colors cursor-pointer shrink-0 shadow-xs"
+                      className="px-2.5 py-1 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-800 text-[11px] font-medium transition-colors cursor-pointer shrink-0 shadow-xs"
                     >
-                      Change File
+                      Change
                     </button>
                   </div>
 
-                  <div className="pt-2 border-t border-neutral-200/60 flex items-center justify-between text-[10px] text-neutral-500">
+                  <div className="pt-2 border-t border-emerald-200/50 flex items-center justify-between text-[10px] text-neutral-500">
                     <span>
-                      {isUsingProfileResume ? 'Source: Pre-loaded from Profile' : 'Source: Uploaded Document'}
+                      {isUsingProfileResume
+                        ? '✓ Default: Sourced from your Profile'
+                        : 'Using one-off session upload'}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-neutral-700 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Upload className="w-3 h-3" />
-                      Upload New File
-                    </button>
+                    {isUsingProfileResume && (
+                      <span className="text-neutral-600 font-medium">
+                        Ready to tailor
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (
-                /* Empty Upload Dropzone */
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-6 rounded-xl border-2 border-dashed border-neutral-300 hover:border-neutral-900 bg-neutral-50/50 hover:bg-neutral-50 transition-all text-center space-y-2 cursor-pointer group"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-white border border-neutral-200 text-neutral-600 group-hover:text-neutral-900 group-hover:border-neutral-900 flex items-center justify-center mx-auto shadow-xs transition-colors">
-                    <Upload className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-neutral-900">
-                      Click to Upload Resume (.pdf, .docx, .txt)
-                    </p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">
-                      Processed automatically in the background
-                    </p>
-                  </div>
-                  {profile?.baseResumeText && (
-                    <button
-                      type="button"
-                      onClick={e => {
-                        e.stopPropagation();
-                        handleResetToProfileResume();
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] text-neutral-900 font-semibold hover:underline mt-1"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      Or use your Base Profile Resume
-                    </button>
-                  )}
+                /* Empty Upload Alert */
+                <div className="p-5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/40 text-center space-y-2">
+                  <AlertCircle className="w-6 h-6 text-amber-600 mx-auto" />
+                  <p className="text-xs font-bold text-neutral-900">
+                    No Resume Attached in Profile
+                  </p>
+                  <p className="text-[11px] text-neutral-600 max-w-xs mx-auto">
+                    Resume upload is mandatory in your Profile. Upload once there and it will be loaded here automatically every time.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 text-white text-xs font-semibold hover:bg-neutral-800 cursor-pointer shadow-xs mt-1"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Upload Resume Now
+                  </button>
                 </div>
               )}
             </div>
